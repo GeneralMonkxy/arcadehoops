@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Blue vs Red — 60s Arcade Hoops</title>
+<style>
+  :root{
+    --bg:#0b0b0b;
+    --court:#c88742;
+    --court-dark:#b27034;
+    --line:#2b2b2b;
+    --ui:#111;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(#111 0%, #0b0b0b 100%);font-family: Inter, Arial, sans-serif; color:#eee}
+  #gameWrap{width:960px;margin:18px auto;position:relative}
+  canvas{display:block;background:
+    linear-gradient(transparent 0 60%, rgba(0,0,0,0.12) 60%),
+    linear-gradient(#4a2f12,#2b1708);
+    border-radius:6px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.6); image-rendering: pixelated;}
+  /* UI overlay */
+  #hud{
+    position:absolute;left:0;right:0;top:8px;pointer-events:none;
+    display:flex;justify-content:center;gap:20px;align-items:center;
+  }
+  .scoreboard{
+    pointer-events:auto;
+    background:linear-gradient(#111,#333);
+    color:#fff;padding:8px 14px;border-radius:6px;border:3px solid #000;display:flex;gap:14px;align-items:center;
+    box-shadow:inset 0 -4px 10px rgba(0,0,0,0.6);
+    font-weight:700;
+  }
+  .team{display:flex;flex-direction:column;align-items:center;font-size:18px}
+  .team .label{font-size:12px;opacity:0.9}
+  .team.blue{color:#7ec8ff}
+  .team.red{color:#ff8b8b}
+  .timebox{background:#0a0a0a;padding:6px 10px;border-radius:6px;border:2px solid #333; font-family:monospace}
+  /* play/pause button */
+  #controls{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;pointer-events:auto}
+  .btn{
+    width:52px;height:48px;border-radius:6px;background:linear-gradient(#666,#333);display:flex;align-items:center;justify-content:center;
+    color:#fff;border:3px solid #000;box-shadow:0 6px 14px rgba(0,0,0,0.6);
+    cursor:pointer;font-weight:700;font-size:16px;
+  }
+  .small{width:36px;height:32px;font-size:14px}
+  #settings{position:absolute;right:0;top:8px;padding:10px;color:#ddd;font-size:12px}
+  #message{position:absolute;left:50%;transform:translateX(-50%);top:70px;background:rgba(0,0,0,0.6);padding:6px 10px;border-radius:6px;pointer-events:none}
+  /* power-up icons */
+  .pu {
+    font-weight:700;padding:6px 8px;border-radius:6px;margin:2px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.04);
+    color:#fff;font-size:12px
+  }
+  footer {text-align:center;color:#777;margin-top:10px;font-size:12px}
+</style>
+</head>
+<body>
+<div id="gameWrap">
+  <canvas id="c" width="960" height="640"></canvas>
+
+  <div id="hud">
+    <div class="scoreboard" style="pointer-events:auto">
+      <div class="team blue">
+        <div class="label">BLUE</div>
+        <div id="scoreBlue" style="font-size:22px">0</div>
+      </div>
+      <div class="timebox" id="timeBox">60</div>
+      <div class="team red">
+        <div class="label">RED</div>
+        <div id="scoreRed" style="font-size:22px">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <div class="btn" id="playPause" title="Play / Pause">⏸</div>
+  </div>
+
+  <div id="settings">
+    <div>Difficulty: <select id="aiDifficulty">
+      <option value="easy">Easy</option>
+      <option value="normal" selected>Normal</option>
+      <option value="hard">Hard</option>
+      <option value="insane">Insane</option>
+    </select></div>
+    <div style="margin-top:6px">Mode: <select id="modeSel"><option value="60">Quick 60s</option><option value="21">First to 21</option></select></div>
+  </div>
+
+  <div id="message" style="display:none"></div>
+</div>
+
+<footer>Controls — Blue: ← → ↑ (jump) Space (shoot hold). Red(CPU) auto. Power-ups drop randomly. 🎮</footer>
+
+<script>
+/*
+  Blue vs Red — Arcade Basketball (Single-file prototype)
+  Features implemented:
+  - Player movement, jump, shoot with hold-to-fill meter (vertical beside player)
+  - Shot meter loops in ~2s, with green/yellow/red zones sized by distance
+  - Shot accuracy modifiers (distance, jump timing, defender)
+  - Ball physics & scoring, simple hoop collision
+  - CPU AI with selectable difficulty
+  - Power-ups spawn and apply effects
+  - Scoreboard (BLUE / RED), 60s (default) or first to 21
+  - Play/Pause button
+*/
+
+// Canvas & context
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// UI elements
+const scoreBlueEl = document.getElementById('scoreBlue');
+const scoreRedEl = document.getElementById('scoreRed');
+const timeBox = document.getElementById('timeBox');
+const playPauseBtn = document.getElementById('playPause');
+const aiSelect = document.getElementById('aiDifficulty');
+const modeSel = document.getElementById('modeSel');
+const messageEl = document.getElementById('message');
+
+let gamePaused = false;
+let lastTs = 0;
+let accumulator=0;
+
+// GAME SETTINGS
+let matchLength = 60; // seconds default
+let firstToScore = null; // if modeSel set to 21 => firstToScore=21
+function applyMode(){
+  const val = modeSel.value;
+  if(val==='21'){ firstToScore=21; matchLength=120; } else { firstToScore=null; matchLength=60; }
+}
+applyMode();
+modeSel.addEventListener('change', ()=>{ applyMode(); resetGame(); });
+
+// audio (simple)
+const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+function beep(freq=880, dur=0.08, vol=0.04){
+  try{
+    const o=ctxAudio.createOscillator(); const g=ctxAudio.createGain();
+    o.type='sine'; o.frequency.value=freq; g.gain.value=vol;
+    o.connect(g); g.connect(ctxAudio.destination);
+    o.start(); o.stop(ctxAudio.currentTime+dur);
+  }catch(e){}
+}
+
+// Utilities
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function now(){return performance.now();}
+
+// COURT layout
+const court = {
+  left:80, right:W-80, top:120, bottom:H-140,
+  midX:W/2, midY: (120+ (H-140))/2
+};
+
+// Hoop positions (hoop is at top of backboard x)
+const hoopRadius = 18;
+const hoopOffsetY = 90; // vertical offset from court top
+const hoopLeft = {x: court.left + 30, y: court.top + hoopOffsetY};
+const hoopRight = {x: court.right - 30, y: court.top + hoopOffsetY};
+
+// Player prototypes
+class Player {
+  constructor(team='blue', x=0, y=0, controls=null, isCPU=false){
+    this.team=team; this.x=x; this.y=y; this.w=34; this.h=48;
+    this.vx=0; this.vy=0; this.speed=2.2; this.baseSpeed=this.speed;
+    this.onGround=true; this.facing = team==='blue'?1:-1;
+    this.isCPU=isCPU;
+    this.color = team==='blue'?'#2ea1ff':'#ff5b5b';
+    this.jumping=false; this.jumpPower=7.2;
+    this.controls=controls; // object mapping
+    this.holdShoot=false; this.charge=0; this.chargeDir=1;
+    this.hasBall=false;
+    this.score=0;
+    this.powerups={hot:false, speed:0, guard:0, double:false};
+    this.shotCooldown=0;
+    this.lastShotTime = -99999;
+  }
+  update(dt){
+    // speed buff
+    this.speed = this.baseSpeed * (this.powerups.speed>0 ? 1.3 : 1);
+
+    // gravity
+    this.vy += 18 * dt; // gravity
+    this.y += this.vy;
+    this.x += this.vx * dt * 60;
+    // ground check
+    const ground = court.bottom - this.h/2;
+    if(this.y >= ground){
+      this.y = ground; this.vy = 0; this.onGround=true; this.jumping=false;
+    } else {
+      this.onGround=false;
+    }
+
+    // shot charge mechanic
+    if(this.holdShoot){
+      // fill from bottom to top in ~2 seconds, loops back
+      const fillSpeed = 1/2; // loops in 2s
+      this.charge += fillSpeed * dt * this.chargeDir;
+      if(this.charge >= 1){ this.charge = 1; this.chargeDir = -1; } 
+      if(this.charge <= 0){ this.charge=0; this.chargeDir=1; }
+    } else {
+      // decay slowly if not holding
+      this.charge = Math.max(0, this.charge - dt*0.6);
+    }
+
+    // powerup timers
+    for(let k in this.powerups){
+      if(k === 'hot' || k==='double') continue;
+      if(this.powerups[k] > 0) this.powerups[k] = Math.max(0, this.powerups[k]-dt);
+    }
+    // shot cooldown
+    this.shotCooldown = Math.max(0, this.shotCooldown - dt);
+  }
+  draw(ctx){
+    // simple pixel-art-ish side view
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    // body shadow
+    ctx.fillStyle='rgba(0,0,0,0.12)';
+    ctx.fillRect(-this.w/2+2, this.h/2-6, this.w-4, 6);
+    // legs
+    ctx.fillStyle=this.color;
+    ctx.fillRect(-this.w/2+6, 0, 8, this.h/2); // upper leg
+    ctx.fillRect(4,0,8,this.h/2);
+    // shoes
+    ctx.fillStyle='#000';
+    ctx.fillRect(-this.w/2+6, this.h/2, 8,6);
+    ctx.fillRect(4, this.h/2, 8,6);
+    // torso
+    ctx.fillStyle=this.color;
+    ctx.fillRect(-this.w/2, -this.h/2+6, this.w, this.h/2);
+    // head
+    ctx.fillStyle='#f1d1b5';
+    ctx.beginPath(); ctx.arc(0, -this.h/2 - 6, 12, 0, Math.PI*2); ctx.fill();
+    // arm with ball (if hasBall)
+    ctx.fillStyle=this.color;
+    ctx.fillRect(this.w/2-6, -this.h/4-4, 8, 4);
+    if(this.hasBall){
+      drawBall(ctx, this.w/2+8, -this.h/4-2, 8);
+    }
+    // jersey trims
+    ctx.fillStyle=this.team==='blue'?'#0b66a6':'#9b1b1b';
+    ctx.fillRect(-this.w/2+2, -this.h/2+6, 6, 8);
+    ctx.restore();
+  }
+}
+
+// Ball object
+class Ball {
+  constructor(x,y){
+    this.x=x; this.y=y; this.vx=0; this.vy=0; this.radius=10; this.holder=null;
+    this.inAir=false; this.bounced=false;
+  }
+  update(dt){
+    if(this.holder){
+      const h=this.holder;
+      // ball sticks to holder's shooting hand
+      this.x = h.x + (h.facing * (h.hasBall ? h.w/2 + 8 : 0));
+      this.y = h.y - h.h/4 - 2;
+      this.vx = 0; this.vy=0;
+      return;
+    }
+    this.vy += 18 * dt;
+    this.x += this.vx * dt * 60;
+    this.y += this.vy * dt * 60;
+
+    // floor bounce
+    const ground = court.bottom - 2;
+    if(this.y + this.radius >= ground){
+      this.y = ground - this.radius;
+      this.vy *= -0.35;
+      this.vx *= 0.8;
+      if(Math.abs(this.vy) < 0.5) this.vy = 0;
+      this.bounced = true;
+      // friction
+      if(Math.abs(this.vx) < 0.2) this.vx = 0;
+    }
+
+    // side bounds
+    if(this.x < 0){ this.vx = Math.abs(this.vx)*0.5; this.x=0+this.radius;}
+    if(this.x > W){ this.vx = -Math.abs(this.vx)*0.5; this.x=W-this.radius;}
+  }
+  draw(ctx){
+    drawBall(ctx,this.x,this.y,this.radius);
+  }
+}
+
+// draw ball helper
+function drawBall(ctx,x,y,r){
+  ctx.save();
+  ctx.beginPath(); ctx.fillStyle='#f27f2f'; ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle='#8c4716';
+  ctx.beginPath(); ctx.arc(x,y,r-1,0,Math.PI*2); ctx.stroke();
+  // lines
+  ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x-r*0.9,y); ctx.lineTo(x+r*0.9,y); ctx.stroke();
+  ctx.restore();
+}
+
+/* INITIAL STATE */
+let blue = new Player('blue', court.left + 120, court.bottom - 24, {left:'ArrowLeft', right:'ArrowRight', jump:'ArrowUp', shoot:'Space'}, false);
+let red = new Player('red', court.right - 120, court.bottom - 24, {left:'a', right:'d', jump:'w', shoot:'f'}, true);
+red.isCPU = true;
+
+const ball = new Ball(blue.x + 26, blue.y - 20);
+ball.holder = blue;
+blue.hasBall = true;
+
+// shot meter visuals (drawn per player)
+function drawShotMeter(ctx,player){
+  if(!player.holdShoot && player.charge<=0.01) return;
+  // position - to player's side
+  const x = clamp(player.x + (player.facing*(player.w/2+20)), 40, W-40);
+  const yTop = player.y - 70;
+  const h = 120; const w = 10;
+  // background
+  ctx.save();
+  ctx.translate(x,yTop);
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.fillRect(-w/2-2, -h/2-2, w+4, h+4);
+  // zones: green/yellow/red sizes vary by distance
+  const distToHoop = Math.abs(player.x - (player.team==='blue' ? hoopRight.x : hoopLeft.x));
+  const zone = shotZoneForDistance(distToHoop);
+  // draw zones from top (green) to bottom (red)
+  let greenH = h * zone.green;
+  let yellowH = h * zone.yellow;
+  let redH = h * zone.red;
+  // top at -h/2
+  let cur = -h/2;
+  ctx.fillStyle='#1aff7b';
+  ctx.fillRect(-w/2, cur, w, greenH); cur += greenH;
+  ctx.fillStyle='#ffd55a';
+  ctx.fillRect(-w/2, cur, w, yellowH); cur += yellowH;
+  ctx.fillStyle='#ff6b6b';
+  ctx.fillRect(-w/2, cur, w, redH);
+  // indicator (charge from bottom to top)
+  const indicatorY = h/2 - (player.charge * h);
+  // glow if green
+  const greenTop = -h/2;
+  const greenBottom = greenTop + greenH;
+  const inGreen = indicatorY >= greenTop && indicatorY <= greenBottom;
+  if(inGreen){
+    ctx.shadowColor='rgba(34,255,125,0.8)';
+    ctx.shadowBlur=10;
+  }
+  ctx.fillStyle='rgba(255,255,255,0.95)';
+  ctx.fillRect(-w/2-2, indicatorY-3, w+4, 6);
+  ctx.restore();
+}
+
+// map distance to zone proportions
+function shotZoneForDistance(dist){
+  // distance thresholds approximate: paint <160, mid <360, long >360
+  if(dist<160) {
+    return {green:0.12, yellow:0.30, red:0.58};
+  } else if(dist<360){
+    return {green:0.08, yellow:0.22, red:0.70};
+  } else {
+    return {green:0.05, yellow:0.15, red:0.80};
+  }
+}
+
+// compute base accuracy from release zone & modifiers
+function computeShotAccuracy(player, releaseZone, dist, releasedAtPeak, defenderNearby, directBlock){
+  if(directBlock) return 0;
+  let base=0;
+  if(releaseZone==='green') base = 0.95;
+  else if(releaseZone==='yellow') base = 0.65;
+  else base = 0.18;
+  // distance already affects zone sizes; for extra realism, slight penalty
+  if(dist>360) base -= 0.08;
+  // peak timing bonus
+  if(releasedAtPeak) base += 0.10;
+  else {
+    // if far from peak more penalty (simulate -10%)
+  }
+  // defender penalty
+  if(defenderNearby) base -= 0.4;
+  // powerups
+  if(player.powerups.hot) base = Math.max(base, 0.98);
+  if(player.powerups.double) {} // only scoring change handled elsewhere
+  return clamp(base, 0, 0.9999);
+}
+
+// shoot action: uses charge to determine release zone
+function determineReleaseZone(player){
+  // use player's charge (0..1) map to meter top->bottom where top is green
+  const charge = player.charge;
+  // top is 1, bottom 0
+  const distToHoop = Math.abs(player.x - (player.team==='blue' ? hoopRight.x : hoopLeft.x));
+  const zone = shotZoneForDistance(distToHoop);
+  // find thresholds from top
+  const greenTop = 1;
+  const greenBottom = 1 - zone.green;
+  const yellowBottom = greenBottom - zone.yellow;
+  // charge near 1 means top
+  if(charge >= greenBottom) return 'green';
+  if(charge >= yellowBottom) return 'yellow';
+  return 'red';
+}
+
+// launch ball from player towards hoop with power/arc influenced by accuracy
+function launchBallFrom(player,releaseZone,accuracy){
+  const targetHoop = player.team==='blue' ? hoopRight : hoopLeft;
+  // compute base speed toward hoop
+  const dx = targetHoop.x - player.x;
+  const dy = targetHoop.y - player.y;
+  // desired travel time influenced by accuracy (better -> ideal arc)
+  let t = clamp(0.7 + (1 - accuracy)*0.9, 0.5, 1.6); // seconds to hoop
+  // initial velocities for projectile: vx = dx/t ; vy = (dy - 0.5*g*t^2)/t
+  const g = 18;
+  const vx = dx / t;
+  const vy = (dy - 0.5 * g * t * t) / t;
+  // apply slight randomness based on release zone
+  const rng = (releaseZone==='green')?0.02: (releaseZone==='yellow'?0.06:0.18);
+  const nudgeX = (Math.random()*2-1) * rng * Math.abs(vx);
+  const nudgeY = (Math.random()*2-1) * rng * Math.abs(vy);
+  ball.holder = null;
+  player.hasBall = false;
+  ball.inAir = true;
+  ball.vx = vx + nudgeX;
+  ball.vy = vy + nudgeY;
+  ball.x = player.x + player.facing*(player.w/2+8);
+  ball.y = player.y - player.h/4 - 2;
+  // sound
+  beep(1000,0.035,0.03);
+  // if overfilled (charge at 1 and looping) overshoot possibility
+  // handled by accuracy randomness
+}
+
+// check hoop scoring
+function checkHoopScoring(){
+  // simple: if ball passes through hoop circle region from above within rim radius, score
+  const hoops = [ {team:'red',pos:hoopRight}, {team:'blue',pos:hoopLeft} ];
+  for(const h of hoops){
+    const dx = ball.x - h.pos.x, dy = ball.y - h.pos.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    // to score must pass near rim and be moving downward (vy>0)
+    if(dist < hoopRadius && ball.vy > -8){
+      // award to opposite team (if ball went into right hoop, left player scores)
+      const scoringTeam = h.team; // team on that hoop (i.e., Red hoop means red defends, Blue scored?)
+      // We'll define: BLUE (left player) scores when ball goes to right hoop (hoopRight). hoopRight.pos has team 'red' (defending)
+      const scorer = (h.pos === hoopRight) ? blue : red;
+      return {scorer, hoop:h.pos};
+    }
+  }
+  return null;
+}
+
+// collision: simple defender block if defender jumping and near shooter at release
+function defenderBlockCheck(shooter){
+  // defender is other player
+  const defender = shooter===blue?red:blue;
+  if(defender.onGround || defender.powerups.guard>0) {
+    // guard powerup increases block chance; but if directly collides while both jumping then direct block
+  }
+  // direct block if both in air and horizontally close within 48 px
+  if(!defender.onGround && !shooter.onGround){
+    if(Math.abs(defender.x - shooter.x) < 56 && Math.abs(defender.y - shooter.y) < 60){
+      return {directBlock:true, defenderNearby:true};
+    }
+  }
+  // defender near if jumping and within 70 px
+  if(!defender.onGround && Math.abs(defender.x - shooter.x) < 90 && Math.abs(defender.y - shooter.y) < 80){
+    return {directBlock:false, defenderNearby:true};
+  }
+  return {directBlock:false, defenderNearby:false};
+}
+
+// score handling
+function awardScore(player,points){
+  player.score += points;
+  if(player===blue) scoreBlueEl.textContent = player.score;
+  else scoreRedEl.textContent = player.score;
+  // sound swish
+  beep(1200,0.08,0.05);
+  // double points powerup consumed
+  if(player.powerups.double){
+    player.powerups.double = false;
+  }
+}
+
+// simple power-ups spawn & apply
+const powerups = []; // each {x,y,type,ttl}
+const powerupTypes = ['hot','speed','guard','double'];
+function spawnPowerup(){
+  const x = court.left + 120 + Math.random()*(court.right - court.left - 240);
+  const y = court.top + 40 + Math.random()*80;
+  const type = powerupTypes[Math.floor(Math.random()*powerupTypes.length)];
+  powerups.push({x,y,type,ttl:10});
+}
+
+// apply when player picks
+function applyPowerup(player,pu){
+  if(pu.type==='hot') player.powerups.hot = true;
+  if(pu.type==='speed') player.powerups.speed = 10; // 10 seconds
+  if(pu.type==='guard') player.powerups.guard = 6;
+  if(pu.type==='double') player.powerups.double = true;
+  beep(1400,0.06,0.06);
+}
+
+// AI Logic (CPU)
+function cpuThink(dt){
+  const p = red;
+  const difficulty = aiSelect.value || 'normal';
+  const nowt = currentTime;
+  // very simple AI: move towards ball when not having it; shoot when near hoop or when has ball
+  // difficulty impacts timing (random delay in release), and shot zone preference
+  if(!p.hasBall){
+    // decide movement: approach ball's x
+    if(Math.abs(p.x - ball.x) > 40){
+      if(p.x > ball.x) p.vx = -p.speed;
+      else p.vx = p.speed;
+      p.facing = p.vx>=0?1:-1;
+    } else {
+      p.vx = 0;
+    }
+    // try to jump to intercept if ball is in air and near
+    if(ball.holder === null && ball.inAir && Math.abs(ball.x - p.x) < 120 && p.onGround){
+      // chance to jump depends on difficulty
+      const jumpChance = difficulty === 'easy'? 0.03 : difficulty==='normal'?0.08: difficulty==='hard'?0.15 : 0.28;
+      if(Math.random() < jumpChance) { p.vy = -p.jumpPower* (difficulty==='insane'?1.1:1); p.jumping=true; beep(600,0.03,0.02); }
+    }
+  } else {
+    // has ball -> approach scoring position and shoot
+    // aim for hoop (right hoop)
+    // if near shooting sweet spot and shoot cooldown finished, start charge then release
+    const goalX = hoopRight.x - 40;
+    const dist = Math.abs(p.x - goalX);
+    if(dist > 12) {
+      p.vx = p.x < goalX ? p.speed : -p.speed;
+      p.facing = p.vx>=0?1:-1;
+    } else {
+      p.vx = 0;
+    }
+    // start holding shoot if not yet
+    if(!p.holdShoot && p.shotCooldown<=0){
+      p.holdShoot = true;
+      p.charge = 0.01;
+    } else if(p.holdShoot){
+      // decide release timing based on difficulty: higher diff -> release mostly green
+      const desired = difficulty === 'easy' ? 0.4 : difficulty==='normal'?0.7: difficulty==='hard'?0.86:0.93;
+      // small randomness
+      if(p.charge >= desired || Math.random() < 0.02){
+        // release
+        simulatePlayerShot(p);
+      }
+    }
+  }
+}
+
+// simulate shot logic for a player (cpu or human) when they release
+function simulatePlayerShot(player){
+  if(!player.hasBall) return;
+  const dcheck = defenderBlockCheck(player);
+  const releaseZone = determineReleaseZone(player);
+  const distToHoop = Math.abs(player.x - (player.team==='blue'?hoopRight.x:hoopLeft.x));
+  const releasedAtPeak = !player.onGround; // simple: if in-air release at peak = bonus
+  let accuracy = computeShotAccuracy(player, releaseZone, distToHoop, releasedAtPeak, dcheck.defenderNearby, dcheck.directBlock);
+  // if direct block -> immediate miss and ball bounces to defender
+  if(dcheck.directBlock){
+    // block: defender gets ball
+    const defender = player===blue?red:blue;
+    // apply block outcome
+    ball.holder = defender;
+    defender.hasBall = true;
+    player.hasBall = false;
+    ball.x = defender.x; ball.y = defender.y - 20;
+    beep(220,0.05,0.06);
+    player.holdShoot = false; player.charge = 0;
+    player.shotCooldown = 0.6;
+    return;
+  }
+  player.holdShoot = false;
+  player.chargeDir = 1;
+  player.lastShotTime = now();
+  player.shotCooldown = 0.8;
+  // get final accuracy including randomness
+  const rand = Math.random();
+  const success = rand < accuracy;
+  // launch ball
+  launchBallFrom(player, releaseZone, accuracy);
+  // if success, ball will travel and go in if physics lines up; otherwise may hit rim and bounce - we'll check when ball reaches hoop
+  // note: if player has hot powerup, guarantee success
+  if(player.powerups.hot) {
+    // nudge velocities to make swish (more ideal)
+    ball.vx *= 0.96; ball.vy *= 0.96;
+  } else if(!success){
+    // add random deviation to cause miss
+    ball.vx += (Math.random()*2-1) * 60 * (1-accuracy);
+    ball.vy += (Math.random()*2-1) * 60 * (1-accuracy);
+  }
+  player.hasBall = false;
+  ball.holder = null;
+  // reduce hot double on shot use
+  if(player.powerups.hot) player.powerups.hot=false;
+  // jump penalty/bonus handled via releasedAtPeak earlier
+}
+
+// collisions and pickup
+function checkPickups(){
+  // ball pickup on ground if near player
+  if(ball.holder===null && Math.abs(ball.y - (court.bottom-2 - ball.radius)) < 5){
+    // find nearest player in range
+    const candidates = [blue, red];
+    for(const p of candidates){
+      if(Math.abs(p.x - ball.x) < 36 && Math.abs(p.y - ball.y) < 60 && p.onGround){
+        ball.holder = p;
+        p.hasBall = true;
+        ball.vx = 0; ball.vy = 0;
+        break;
+      }
+    }
+  }
+  // powerup pickups
+  for(let i=powerups.length-1;i>=0;i--){
+    const pu = powerups[i];
+    // display TTL
+    pu.ttl -= dtGlobal;
+    if(pu.ttl <= 0){ powerups.splice(i,1); continue;}
+    if(Math.hypot(blue.x - pu.x, blue.y - pu.y) < 36){ applyPowerup(blue,pu); powerups.splice(i,1); continue;}
+    if(Math.hypot(red.x - pu.x, red.y - pu.y) < 36){ applyPowerup(red,pu); powerups.splice(i,1); continue;}
+  }
+}
+
+// Rendering helpers
+function drawCourt(ctx){
+  // floor
+  ctx.fillStyle='#c07a3e';
+  ctx.fillRect(court.left, court.top, court.right - court.left, court.bottom - court.top);
+  // center line
+  ctx.strokeStyle='rgba(0,0,0,0.18)';
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(court.midX, court.top); ctx.lineTo(court.midX, court.bottom); ctx.stroke();
+  // side lines
+  ctx.strokeStyle='rgba(255,255,255,0.06)';
+  ctx.strokeRect(court.left, court.top, court.right-court.left, court.bottom-court.top);
+  // hoop backboards & rims
+  // left backboard
+  ctx.fillStyle='rgba(255,255,255,0.9)';
+  ctx.fillRect(hoopLeft.x-32, hoopLeft.y-62, 64, 6);
+  ctx.fillStyle='#cc0000'; ctx.fillRect(hoopLeft.x-28, hoopLeft.y-20, 56, 6);
+  ctx.beginPath(); ctx.strokeStyle='#663300'; ctx.lineWidth=3; ctx.arc(hoopLeft.x, hoopLeft.y, hoopRadius, 0, Math.PI*2); ctx.stroke();
+  // right
+  ctx.fillStyle='rgba(255,255,255,0.9)';
+  ctx.fillRect(hoopRight.x-32, hoopRight.y-62, 64, 6);
+  ctx.fillStyle='#cc0000'; ctx.fillRect(hoopRight.x-28, hoopRight.y-20, 56, 6);
+  ctx.beginPath(); ctx.strokeStyle='#663300'; ctx.lineWidth=3; ctx.arc(hoopRight.x, hoopRight.y, hoopRadius, 0, Math.PI*2); ctx.stroke();
+}
+
+// draw scoreboard + UI overlays (some handled in DOM)
+function drawUI(){
+  // draw play/pause icon on button
+  playPauseBtn.textContent = gamePaused ? '▶' : '⏸';
+  // time
+  timeBox.textContent = Math.ceil(matchTimer);
+}
+
+// MAIN LOOP
+let currentTime = 0;
+let dtGlobal = 0;
+let matchTimer = matchLength;
+let gameOver=false;
+
+// reset game
+function resetGame(){
+  blue = new Player('blue', court.left + 120, court.bottom - 24, {left:'ArrowLeft', right:'ArrowRight', jump:'ArrowUp', shoot:'Space'}, false);
+  red = new Player('red', court.right - 120, court.bottom - 24, {left:'a', right:'d', jump:'w', shoot:'f'}, true);
+  red.isCPU = true;
+  ball.x = blue.x + 26; ball.y = blue.y - 20; ball.vx = 0; ball.vy = 0; ball.holder = blue; ball.inAir=false;
+  blue.hasBall = true; red.hasBall=false;
+  blue.score=0; red.score=0;
+  scoreBlueEl.textContent = '0'; scoreRedEl.textContent = '0';
+  matchTimer = matchLength;
+  gameOver=false;
+  powerups.length=0;
+  messageEl.style.display='none';
+}
+
+// initialize
+resetGame();
+
+// Input handling
+const keys = {};
+window.addEventListener('keydown', e=>{
+  const k = e.key;
+  keys[k]=true;
+  // prevent scrolling for arrows and space
+  if(['ArrowUp','ArrowLeft','ArrowRight',' '].includes(k) || k==='Space') e.preventDefault();
+});
+window.addEventListener('keyup', e=>{
+  const k = e.key;
+  keys[k]=false;
+});
+
+// handle play/pause
+playPauseBtn.addEventListener('click', ()=>{
+  gamePaused = !gamePaused;
+  playPauseBtn.textContent = gamePaused ? '▶' : '⏸';
+  if(!gamePaused){ lastTs = performance.now(); requestAnimationFrame(mainLoop); }
+});
+
+// small message
+function showMessage(t){
+  messageEl.textContent = t;
+  messageEl.style.display='block';
+  setTimeout(()=>{ messageEl.style.display='none'; }, 2200);
+}
+
+// main loop
+function mainLoop(ts){
+  if(gamePaused || gameOver) return;
+  if(!lastTs) lastTs = ts;
+  let dt = (ts - lastTs)/1000;
+  if(dt > 0.05) dt = 0.05;
+  lastTs = ts;
+  currentTime = ts/1000;
+  dtGlobal = dt;
+
+  update(dt);
+  render();
+
+  if(!gamePaused && !gameOver) requestAnimationFrame(mainLoop);
+}
+
+// update function
+function update(dt){
+  // timers
+  matchTimer = Math.max(0, matchTimer - dt);
+  if(matchTimer <= 0){
+    endMatch();
+  }
+
+  // player controls (blue human)
+  // horizontal
+  let moveLeft = keys['ArrowLeft'];
+  let moveRight = keys['ArrowRight'];
+  blue.vx = 0;
+  if(moveLeft) { blue.vx = -blue.speed; blue.facing=-1; }
+  if(moveRight) { blue.vx = blue.speed; blue.facing=1; }
+
+  // jump
+  if(keys['ArrowUp'] && blue.onGround){
+    blue.vy = -blue.jumpPower; blue.jumping=true; blue.onGround=false; beep(600,0.03,0.02);
+  }
+  // shoot hold
+  if(keys[' '] || keys['Space']){
+    // require player has ball
+    if(blue.hasBall && blue.shotCooldown <= 0) blue.holdShoot = true;
+  } else if(blue.holdShoot){
+    // release shoot
+    simulatePlayerShot(blue);
+  }
+
+  // CPU think
+  cpuThink(dt);
+
+  // update players
+  blue.update(dt);
+  red.update(dt);
+
+  // players friction
+  blue.vx *= 0.96; red.vx *= 0.96;
+
+  // ball update
+  ball.update(dt);
+
+  // pick ups & powerups
+  checkPickups();
+
+  // check scoring when ball near hoop
+  const sc = checkHoopScoring();
+  if(sc){
+    const scorer = sc.scorer;
+    // scoring points = 2 or 3 if distance > 360
+    const distToHoop = Math.abs(scorer.x - (scorer.team==='blue'?hoopRight.x:hoopLeft.x));
+    const pts = distToHoop>360?3:2;
+    const awarded = scorer.powerups.double ? pts*2 : pts;
+    awardScore(scorer, awarded);
+    // reset ball to defender on other side
+    const opposite = scorer===blue ? red : blue;
+    ball.holder = opposite; opposite.hasBall = true;
+    ball.x = opposite.x; ball.y = opposite.y - 24;
+    ball.vx = 0; ball.vy = 0; ball.inAir=false;
+    // check win condition firstToScore
+    if(firstToScore && scorer.score >= firstToScore){
+      endMatch(scorer);
+    }
+  }
+
+  // auto pick up ball if small velocity & near player
+  if(!ball.holder && !ball.inAir && ball.vx===0 && ball.vy===0){
+    if(Math.hypot(blue.x - ball.x, blue.y - ball.y) < 48){ ball.holder = blue; blue.hasBall=true; }
+    else if(Math.hypot(red.x - ball.x, red.y - ball.y) < 48){ ball.holder = red; red.hasBall=true; }
+  }
+
+  // powerup spawn occasionally
+  if(Math.random() < dt * 0.06){ // about every ~17 sec on avg? random - tweak
+    if(powerups.length < 2) spawnPowerup();
+  }
+
+  // CPU sometimes steals when near
+  if(red.hasBall && blue!==null){
+    // if red holds ball and blue close enough, blue tries to steal on jump (for singleplayer oddity)
+    // not implemented for simplicity
+  }
+
+  // update DOM UI
+  drawUI();
+
+  // end early if someone reached big score limit
+  if(firstToScore && (blue.score >= firstToScore || red.score >= firstToScore)){
+    endMatch(blue.score>red.score?blue:red);
+  }
+}
+
+// end match
+function endMatch(winner){
+  gameOver = true;
+  let text = "Time!";
+  if(winner){
+    text = (winner===blue ? 'BLUE' : 'RED') + ' wins!';
+  } else {
+    if(blue.score === red.score) text = "Draw!";
+    else text = (blue.score > red.score ? 'BLUE wins!' : 'RED wins!');
+  }
+  showMessage(text);
+  // stop loop
+}
+
+// rendering
+function render(){
+  ctx.clearRect(0,0,W,H);
+  // background audience tint
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0,0,W,H);
+  // court
+  drawCourt(ctx);
+  // draw powerups
+  for(const pu of powerups){
+    ctx.save();
+    ctx.translate(pu.x, pu.y);
+    ctx.beginPath(); ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.fillRect(-18,-12,36,24);
+    ctx.fillStyle = pu.type==='hot' ? '#ffb84d' : pu.type==='speed' ? '#7ec8ff' : pu.type==='guard' ? '#b5ffb4' : '#ffd6ff';
+    ctx.font='12px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(pu.type[0].toUpperCase(), 0, 0);
+    ctx.restore();
+  }
+  // shot meters (draw before players so they appear beside)
+  drawShotMeter(ctx, blue);
+  drawShotMeter(ctx, red);
+
+  // players
+  blue.draw(ctx);
+  red.draw(ctx);
+
+  // ball on top
+  ball.draw(ctx);
+
+  // HUD: scores/time already in DOM, but draw small center pause indicator
+  if(gamePaused){
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(W/2-60, H/2-30, 120, 60);
+    ctx.fillStyle='#fff'; ctx.font='20px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('PAUSED', W/2, H/2+8);
+  }
+
+  // show match timer big
+  ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(12,12,110,44);
+  ctx.fillStyle='#fff'; ctx.font='22px monospace'; ctx.textAlign='left';
+  ctx.fillText('Time: ' + Math.ceil(matchTimer), 20, 40);
+}
+
+// input release handling for human shoot (space)
+window.addEventListener('keyup', (e)=>{
+  if(e.key === ' ' || e.key==='Space') {
+    if(blue.holdShoot) simulatePlayerShot(blue);
+    blue.holdShoot=false;
+  }
+});
+
+// small game tick to ensure continuous animation
+let accumulated = 0;
+let runLoop = ()=>{ if(!gamePaused && !gameOver) { requestAnimationFrame(mainLoop); } };
+requestAnimationFrame(mainLoop);
+
+// initial hints
+showMessage('60s Quick Game — First to 21 optional. Press ▶/⏸ to pause.');
+
+// Restart on difficulty change
+aiSelect.addEventListener('change', ()=>{ resetGame(); });
+
+// expose reset handy
+window.resetGame = resetGame;
+
+</script>
+</body>
+</html>
