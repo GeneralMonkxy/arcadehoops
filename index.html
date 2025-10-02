@@ -1,901 +1,1359 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Blue vs Red — 60s Arcade Hoops</title>
-<style>
-  :root{
-    --bg:#0b0b0b;
-    --court:#c88742;
-    --court-dark:#b27034;
-    --line:#2b2b2b;
-    --ui:#111;
-  }
-  html,body{height:100%;margin:0;background:linear-gradient(#111 0%, #0b0b0b 100%);font-family: Inter, Arial, sans-serif; color:#eee}
-  #gameWrap{width:960px;margin:18px auto;position:relative}
-  canvas{display:block;background:
-    linear-gradient(transparent 0 60%, rgba(0,0,0,0.12) 60%),
-    linear-gradient(#4a2f12,#2b1708);
-    border-radius:6px;
-    box-shadow:0 12px 30px rgba(0,0,0,0.6); image-rendering: pixelated;}
-  /* UI overlay */
-  #hud{
-    position:absolute;left:0;right:0;top:8px;pointer-events:none;
-    display:flex;justify-content:center;gap:20px;align-items:center;
-  }
-  .scoreboard{
-    pointer-events:auto;
-    background:linear-gradient(#111,#333);
-    color:#fff;padding:8px 14px;border-radius:6px;border:3px solid #000;display:flex;gap:14px;align-items:center;
-    box-shadow:inset 0 -4px 10px rgba(0,0,0,0.6);
-    font-weight:700;
-  }
-  .team{display:flex;flex-direction:column;align-items:center;font-size:18px}
-  .team .label{font-size:12px;opacity:0.9}
-  .team.blue{color:#7ec8ff}
-  .team.red{color:#ff8b8b}
-  .timebox{background:#0a0a0a;padding:6px 10px;border-radius:6px;border:2px solid #333; font-family:monospace}
-  /* play/pause button */
-  #controls{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;pointer-events:auto}
-  .btn{
-    width:52px;height:48px;border-radius:6px;background:linear-gradient(#666,#333);display:flex;align-items:center;justify-content:center;
-    color:#fff;border:3px solid #000;box-shadow:0 6px 14px rgba(0,0,0,0.6);
-    cursor:pointer;font-weight:700;font-size:16px;
-  }
-  .small{width:36px;height:32px;font-size:14px}
-  #settings{position:absolute;right:0;top:8px;padding:10px;color:#ddd;font-size:12px}
-  #message{position:absolute;left:50%;transform:translateX(-50%);top:70px;background:rgba(0,0,0,0.6);padding:6px 10px;border-radius:6px;pointer-events:none}
-  /* power-up icons */
-  .pu {
-    font-weight:700;padding:6px 8px;border-radius:6px;margin:2px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.04);
-    color:#fff;font-size:12px
-  }
-  footer {text-align:center;color:#777;margin-top:10px;font-size:12px}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Hoops</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            background-image: radial-gradient(circle, #333, #1a1a1a);
+        }
+        .game-container {
+            position: relative;
+            width: 1000px;
+            height: 600px;
+            border: 4px solid #333;
+            background-color: #000;
+            box-shadow: 0 0 30px rgba(255, 165, 0, 0.5);
+        }
+        canvas { display: block; }
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 10;
+        }
+        .hidden { display: none; }
+        .menu-box {
+            background-color: #2c2c2c;
+            border: 4px solid #fd9500;
+            padding: 30px 40px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(253, 149, 0, 0.7);
+            max-width: 600px;
+        }
+        .menu-box h1 {
+            font-size: 2.5em;
+            margin: 0 0 20px 0;
+            color: #fd9500;
+            text-shadow: 3px 3px 0 #000;
+        }
+        .menu-box h2 { font-size: 1.5em; margin: 20px 0; }
+        .menu-box p { font-size: 0.8em; line-height: 1.5; max-width: 500px; text-align: left;}
+        .btn {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #fd9500;
+            color: #fff;
+            border: 2px solid #fff;
+            padding: 15px 25px;
+            font-size: 1em;
+            cursor: pointer;
+            margin: 10px;
+            text-shadow: 2px 2px 0 #000;
+            transition: all 0.2s ease;
+        }
+        .btn:hover { background-color: #ffaf4d; transform: translateY(-2px); }
+        
+        .setup-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .setup-row h2 {
+            font-size: 1.2em;
+            margin-right: 20px;
+        }
+        .setup-btn-group {
+            display: flex;
+        }
+        .setup-btn.active {
+            background-color: #e67e22;
+            box-shadow: inset 0 0 10px #000;
+        }
+
+        #start-game-btn {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 6;
+        }
+
+        #scoreboard {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(180deg, rgba(30,30,30,0.95) 0%, rgba(50,50,50,0.85) 100%);
+            border-bottom: 4px solid #fd9500;
+            padding: 5px 30px;
+            font-size: 1.5em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 300px;
+            text-align: center;
+            z-index: 5;
+            color: #fff;
+            border-radius: 0 0 20px 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .team-score { display: flex; align-items: center; font-weight: bold; }
+        .p1-color { color: #e74c3c; text-shadow: 1px 1px 5px #000; }
+        .p2-color { color: #3498db; text-shadow: 1px 1px 5px #000; }
+        #timer { font-size: 1.2em; min-width: 60px; color: #f1c40f;}
+
+        #game-message {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.5em;
+            text-shadow: 3px 3px 0 #000;
+            z-index: 15;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+        }
+        .show-message { opacity: 1; }
+        #game-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 11;
+        }
+        .control-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            color: white;
+            font-size: 2em;
+        }
+        .control-btn svg {
+            width: 32px;
+            height: 32px;
+            fill: white;
+            filter: drop-shadow(2px 2px 2px #000);
+        }
+        
+        /* Vertical Shot Meter */
+        #shot-meter {
+            position: absolute;
+            width: 15px; 
+            height: 120px;
+            background-color: rgba(0,0,0,0.5);
+            border: 2px solid white;
+            z-index: 6;
+            display: none; 
+            flex-direction: column-reverse;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: box-shadow 0.1s ease;
+            pointer-events: none;
+        }
+        #shot-meter-bar {
+            width: 100%;
+            background-color: #fff;
+            transition: height 0.05s linear, background-color 0.2s ease;
+        }
+        .flash-green #shot-meter-bar {
+            background-color: #00FF00 !important; /* Solid green as requested */
+            height: 100% !important; /* Fill the bar on green */
+        }
+        #shot-meter-green-zone {
+            position: absolute;
+            bottom: 85%; /* Perfect release zone at the top */
+            width: 100%;
+            height: 15%;
+            background-color: rgba(46, 204, 113, 0.7);
+        }
+        .flash-green {
+            box-shadow: 0 0 25px 8px #2ecc71, inset 0 0 10px #fff;
+        }
+    </style>
 </head>
 <body>
-<div id="gameWrap">
-  <canvas id="c" width="960" height="640"></canvas>
+    <div class="game-container">
+        <div id="shot-meter">
+            <div id="shot-meter-green-zone"></div>
+            <div id="shot-meter-bar"></div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="game-controls">
+            <button id="help-btn" class="control-btn">?</button>
+            <button id="home-btn" class="control-btn hidden">
+                <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"/></svg>
+            </button>
+            <button id="pause-btn" class="control-btn hidden">❚❚</button>
+        </div>
 
-  <div id="hud">
-    <div class="scoreboard" style="pointer-events:auto">
-      <div class="team blue">
-        <div class="label">BLUE</div>
-        <div id="scoreBlue" style="font-size:22px">0</div>
-      </div>
-      <div class="timebox" id="timeBox">60</div>
-      <div class="team red">
-        <div class="label">RED</div>
-        <div id="scoreRed" style="font-size:22px">0</div>
-      </div>
+        <div id="scoreboard" class="hidden">
+             <div class="team-score">
+                <span id="p1Score" class="p1-color">0</span>
+            </div>
+            <div id="timer-container"><span id="timer">60</span></div>
+            <div class="team-score">
+                <span id="p2Score" class="p2-color">0</span>
+            </div>
+        </div>
+        
+        <button id="start-game-btn" class="btn hidden">Start Game</button>
+        <div id="game-message"></div>
+
+        <!-- Menus -->
+        <div id="main-menu" class="ui-overlay">
+            <div class="menu-box">
+                <h1>Arcade Hoops</h1>
+                <div>
+                    <button id="play-btn" class="btn">Play</button>
+                </div>
+            </div>
+        </div>
+        <div id="game-setup-menu" class="ui-overlay hidden">
+            <div class="menu-box">
+                <h1>Game Setup</h1>
+                <div class="setup-row">
+                    <h2>Players</h2>
+                    <div class="setup-btn-group">
+                        <button class="btn setup-btn active" data-setup="players" data-value="1">1P VS CPU</button>
+                        <button class="btn setup-btn" data-setup="players" data-value="2">2 Players</button>
+                    </div>
+                </div>
+                <div class="setup-row" id="difficulty-row">
+                    <h2>Difficulty</h2>
+                    <div class="setup-btn-group">
+                        <button class="btn setup-btn" data-setup="difficulty" data-value="easy">Easy</button>
+                        <button class="btn setup-btn active" data-setup="difficulty" data-value="medium">Medium</button>
+                        <button class="btn setup-btn" data-setup="difficulty" data-value="hard">Hard</button>
+                    </div>
+                </div>
+                <div class="setup-row">
+                    <h2>Game Mode</h2>
+                     <div class="setup-btn-group">
+                        <button class="btn setup-btn active" data-setup="mode" data-value="score">First to 21</button>
+                        <button class="btn setup-btn" data-setup="mode" data-value="time">60 Seconds</button>
+                    </div>
+                </div>
+                <button id="start-setup-btn" class="btn">Start Game</button>
+                <button class="btn back-btn" data-target="main-menu">Back</button>
+            </div>
+        </div>
+        <div id="game-over-menu" class="ui-overlay hidden">
+            <div class="menu-box">
+                <h1 id="winner-text">Game Over!</h1>
+                <h2 id="final-score-text"></h2>
+                <div>
+                    <button id="play-again-same-settings-btn" class="btn">Play Again</button>
+                    <button id="main-menu-btn" class="btn">Menu</button>
+                    <button id="start-ot-btn" class="btn hidden">Start OT</button>
+                </div>
+            </div>
+        </div>
+        <div id="help-menu" class="ui-overlay hidden">
+            <div class="menu-box">
+                <h1>Controls</h1>
+                <h2>Player 1 (Red)</h2>
+                <p>Move: WASD Keys<br>Jump/Shoot/Block: F<br>Steal: G<br>Crossover: Double-tap G</p>
+                <h2>Player 2 (Blue)</h2>
+                <p>Move: Arrow Keys<br>Jump/Shoot/Block: K<br>Steal: L<br>Crossover: Double-tap L</p>
+                <div id="audio-controls" style="margin-top: 20px; text-align: left;">
+                    <p style="margin-bottom: 10px;">Music Select:</p>
+                    <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap;">
+                        <button class="btn music-btn" data-music="0">Music 1</button>
+                        <button class="btn music-btn" data-music="1">Music 2</button>
+                        <button class="btn music-btn" data-music="2">Music 3</button>
+                        <button id="mute-btn" class="btn" style="padding: 10px; font-size: 1em; width: 60px; height: 60px; vertical-align: middle;">
+                             <svg id="mute-icon" viewBox="0 0 24 24" style="width: 100%; height: 100%; fill: white;">
+                                <path id="speaker-path" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"></path>
+                                <path id="slash-path" d="M 2 2 L 22 22" stroke="white" stroke-width="3" style="display: none;"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <button id="close-help-btn" class="btn">Close</button>
+            </div>
+        </div>
+        <div id="pause-menu" class="ui-overlay hidden">
+            <div class="menu-box">
+                <h1>Paused</h1>
+                <button id="resume-btn" class="btn">Resume</button>
+            </div>
+        </div>
     </div>
-  </div>
-
-  <div id="controls">
-    <div class="btn" id="playPause" title="Play / Pause">⏸</div>
-  </div>
-
-  <div id="settings">
-    <div>Difficulty: <select id="aiDifficulty">
-      <option value="easy">Easy</option>
-      <option value="normal" selected>Normal</option>
-      <option value="hard">Hard</option>
-      <option value="insane">Insane</option>
-    </select></div>
-    <div style="margin-top:6px">Mode: <select id="modeSel"><option value="60">Quick 60s</option><option value="21">First to 21</option></select></div>
-  </div>
-
-  <div id="message" style="display:none"></div>
-</div>
-
-<footer>Controls — Blue: ← → ↑ (jump) Space (shoot hold). Red(CPU) auto. Power-ups drop randomly. 🎮</footer>
-
-<script>
-/*
-  Blue vs Red — Arcade Basketball (Single-file prototype)
-  Features implemented:
-  - Player movement, jump, shoot with hold-to-fill meter (vertical beside player)
-  - Shot meter loops in ~2s, with green/yellow/red zones sized by distance
-  - Shot accuracy modifiers (distance, jump timing, defender)
-  - Ball physics & scoring, simple hoop collision
-  - CPU AI with selectable difficulty
-  - Power-ups spawn and apply effects
-  - Scoreboard (BLUE / RED), 60s (default) or first to 21
-  - Play/Pause button
-*/
-
-// Canvas & context
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
-
-// UI elements
-const scoreBlueEl = document.getElementById('scoreBlue');
-const scoreRedEl = document.getElementById('scoreRed');
-const timeBox = document.getElementById('timeBox');
-const playPauseBtn = document.getElementById('playPause');
-const aiSelect = document.getElementById('aiDifficulty');
-const modeSel = document.getElementById('modeSel');
-const messageEl = document.getElementById('message');
-
-let gamePaused = false;
-let lastTs = 0;
-let accumulator=0;
-
-// GAME SETTINGS
-let matchLength = 60; // seconds default
-let firstToScore = null; // if modeSel set to 21 => firstToScore=21
-function applyMode(){
-  const val = modeSel.value;
-  if(val==='21'){ firstToScore=21; matchLength=120; } else { firstToScore=null; matchLength=60; }
-}
-applyMode();
-modeSel.addEventListener('change', ()=>{ applyMode(); resetGame(); });
-
-// audio (simple)
-const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
-function beep(freq=880, dur=0.08, vol=0.04){
-  try{
-    const o=ctxAudio.createOscillator(); const g=ctxAudio.createGain();
-    o.type='sine'; o.frequency.value=freq; g.gain.value=vol;
-    o.connect(g); g.connect(ctxAudio.destination);
-    o.start(); o.stop(ctxAudio.currentTime+dur);
-  }catch(e){}
-}
-
-// Utilities
-function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
-function now(){return performance.now();}
-
-// COURT layout
-const court = {
-  left:80, right:W-80, top:120, bottom:H-140,
-  midX:W/2, midY: (120+ (H-140))/2
-};
-
-// Hoop positions (hoop is at top of backboard x)
-const hoopRadius = 18;
-const hoopOffsetY = 90; // vertical offset from court top
-const hoopLeft = {x: court.left + 30, y: court.top + hoopOffsetY};
-const hoopRight = {x: court.right - 30, y: court.top + hoopOffsetY};
-
-// Player prototypes
-class Player {
-  constructor(team='blue', x=0, y=0, controls=null, isCPU=false){
-    this.team=team; this.x=x; this.y=y; this.w=34; this.h=48;
-    this.vx=0; this.vy=0; this.speed=2.2; this.baseSpeed=this.speed;
-    this.onGround=true; this.facing = team==='blue'?1:-1;
-    this.isCPU=isCPU;
-    this.color = team==='blue'?'#2ea1ff':'#ff5b5b';
-    this.jumping=false; this.jumpPower=7.2;
-    this.controls=controls; // object mapping
-    this.holdShoot=false; this.charge=0; this.chargeDir=1;
-    this.hasBall=false;
-    this.score=0;
-    this.powerups={hot:false, speed:0, guard:0, double:false};
-    this.shotCooldown=0;
-    this.lastShotTime = -99999;
-  }
-  update(dt){
-    // speed buff
-    this.speed = this.baseSpeed * (this.powerups.speed>0 ? 1.3 : 1);
-
-    // gravity
-    this.vy += 18 * dt; // gravity
-    this.y += this.vy;
-    this.x += this.vx * dt * 60;
-    // ground check
-    const ground = court.bottom - this.h/2;
-    if(this.y >= ground){
-      this.y = ground; this.vy = 0; this.onGround=true; this.jumping=false;
-    } else {
-      this.onGround=false;
-    }
-
-    // shot charge mechanic
-    if(this.holdShoot){
-      // fill from bottom to top in ~2 seconds, loops back
-      const fillSpeed = 1/2; // loops in 2s
-      this.charge += fillSpeed * dt * this.chargeDir;
-      if(this.charge >= 1){ this.charge = 1; this.chargeDir = -1; } 
-      if(this.charge <= 0){ this.charge=0; this.chargeDir=1; }
-    } else {
-      // decay slowly if not holding
-      this.charge = Math.max(0, this.charge - dt*0.6);
-    }
-
-    // powerup timers
-    for(let k in this.powerups){
-      if(k === 'hot' || k==='double') continue;
-      if(this.powerups[k] > 0) this.powerups[k] = Math.max(0, this.powerups[k]-dt);
-    }
-    // shot cooldown
-    this.shotCooldown = Math.max(0, this.shotCooldown - dt);
-  }
-  draw(ctx){
-    // simple pixel-art-ish side view
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    // body shadow
-    ctx.fillStyle='rgba(0,0,0,0.12)';
-    ctx.fillRect(-this.w/2+2, this.h/2-6, this.w-4, 6);
-    // legs
-    ctx.fillStyle=this.color;
-    ctx.fillRect(-this.w/2+6, 0, 8, this.h/2); // upper leg
-    ctx.fillRect(4,0,8,this.h/2);
-    // shoes
-    ctx.fillStyle='#000';
-    ctx.fillRect(-this.w/2+6, this.h/2, 8,6);
-    ctx.fillRect(4, this.h/2, 8,6);
-    // torso
-    ctx.fillStyle=this.color;
-    ctx.fillRect(-this.w/2, -this.h/2+6, this.w, this.h/2);
-    // head
-    ctx.fillStyle='#f1d1b5';
-    ctx.beginPath(); ctx.arc(0, -this.h/2 - 6, 12, 0, Math.PI*2); ctx.fill();
-    // arm with ball (if hasBall)
-    ctx.fillStyle=this.color;
-    ctx.fillRect(this.w/2-6, -this.h/4-4, 8, 4);
-    if(this.hasBall){
-      drawBall(ctx, this.w/2+8, -this.h/4-2, 8);
-    }
-    // jersey trims
-    ctx.fillStyle=this.team==='blue'?'#0b66a6':'#9b1b1b';
-    ctx.fillRect(-this.w/2+2, -this.h/2+6, 6, 8);
-    ctx.restore();
-  }
-}
-
-// Ball object
-class Ball {
-  constructor(x,y){
-    this.x=x; this.y=y; this.vx=0; this.vy=0; this.radius=10; this.holder=null;
-    this.inAir=false; this.bounced=false;
-  }
-  update(dt){
-    if(this.holder){
-      const h=this.holder;
-      // ball sticks to holder's shooting hand
-      this.x = h.x + (h.facing * (h.hasBall ? h.w/2 + 8 : 0));
-      this.y = h.y - h.h/4 - 2;
-      this.vx = 0; this.vy=0;
-      return;
-    }
-    this.vy += 18 * dt;
-    this.x += this.vx * dt * 60;
-    this.y += this.vy * dt * 60;
-
-    // floor bounce
-    const ground = court.bottom - 2;
-    if(this.y + this.radius >= ground){
-      this.y = ground - this.radius;
-      this.vy *= -0.35;
-      this.vx *= 0.8;
-      if(Math.abs(this.vy) < 0.5) this.vy = 0;
-      this.bounced = true;
-      // friction
-      if(Math.abs(this.vx) < 0.2) this.vx = 0;
-    }
-
-    // side bounds
-    if(this.x < 0){ this.vx = Math.abs(this.vx)*0.5; this.x=0+this.radius;}
-    if(this.x > W){ this.vx = -Math.abs(this.vx)*0.5; this.x=W-this.radius;}
-  }
-  draw(ctx){
-    drawBall(ctx,this.x,this.y,this.radius);
-  }
-}
-
-// draw ball helper
-function drawBall(ctx,x,y,r){
-  ctx.save();
-  ctx.beginPath(); ctx.fillStyle='#f27f2f'; ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-  ctx.lineWidth=2; ctx.strokeStyle='#8c4716';
-  ctx.beginPath(); ctx.arc(x,y,r-1,0,Math.PI*2); ctx.stroke();
-  // lines
-  ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.arc(x,y,r*0.6,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x-r*0.9,y); ctx.lineTo(x+r*0.9,y); ctx.stroke();
-  ctx.restore();
-}
-
-/* INITIAL STATE */
-let blue = new Player('blue', court.left + 120, court.bottom - 24, {left:'ArrowLeft', right:'ArrowRight', jump:'ArrowUp', shoot:'Space'}, false);
-let red = new Player('red', court.right - 120, court.bottom - 24, {left:'a', right:'d', jump:'w', shoot:'f'}, true);
-red.isCPU = true;
-
-const ball = new Ball(blue.x + 26, blue.y - 20);
-ball.holder = blue;
-blue.hasBall = true;
-
-// shot meter visuals (drawn per player)
-function drawShotMeter(ctx,player){
-  if(!player.holdShoot && player.charge<=0.01) return;
-  // position - to player's side
-  const x = clamp(player.x + (player.facing*(player.w/2+20)), 40, W-40);
-  const yTop = player.y - 70;
-  const h = 120; const w = 10;
-  // background
-  ctx.save();
-  ctx.translate(x,yTop);
-  ctx.fillStyle='rgba(0,0,0,0.6)';
-  ctx.fillRect(-w/2-2, -h/2-2, w+4, h+4);
-  // zones: green/yellow/red sizes vary by distance
-  const distToHoop = Math.abs(player.x - (player.team==='blue' ? hoopRight.x : hoopLeft.x));
-  const zone = shotZoneForDistance(distToHoop);
-  // draw zones from top (green) to bottom (red)
-  let greenH = h * zone.green;
-  let yellowH = h * zone.yellow;
-  let redH = h * zone.red;
-  // top at -h/2
-  let cur = -h/2;
-  ctx.fillStyle='#1aff7b';
-  ctx.fillRect(-w/2, cur, w, greenH); cur += greenH;
-  ctx.fillStyle='#ffd55a';
-  ctx.fillRect(-w/2, cur, w, yellowH); cur += yellowH;
-  ctx.fillStyle='#ff6b6b';
-  ctx.fillRect(-w/2, cur, w, redH);
-  // indicator (charge from bottom to top)
-  const indicatorY = h/2 - (player.charge * h);
-  // glow if green
-  const greenTop = -h/2;
-  const greenBottom = greenTop + greenH;
-  const inGreen = indicatorY >= greenTop && indicatorY <= greenBottom;
-  if(inGreen){
-    ctx.shadowColor='rgba(34,255,125,0.8)';
-    ctx.shadowBlur=10;
-  }
-  ctx.fillStyle='rgba(255,255,255,0.95)';
-  ctx.fillRect(-w/2-2, indicatorY-3, w+4, 6);
-  ctx.restore();
-}
-
-// map distance to zone proportions
-function shotZoneForDistance(dist){
-  // distance thresholds approximate: paint <160, mid <360, long >360
-  if(dist<160) {
-    return {green:0.12, yellow:0.30, red:0.58};
-  } else if(dist<360){
-    return {green:0.08, yellow:0.22, red:0.70};
-  } else {
-    return {green:0.05, yellow:0.15, red:0.80};
-  }
-}
-
-// compute base accuracy from release zone & modifiers
-function computeShotAccuracy(player, releaseZone, dist, releasedAtPeak, defenderNearby, directBlock){
-  if(directBlock) return 0;
-  let base=0;
-  if(releaseZone==='green') base = 0.95;
-  else if(releaseZone==='yellow') base = 0.65;
-  else base = 0.18;
-  // distance already affects zone sizes; for extra realism, slight penalty
-  if(dist>360) base -= 0.08;
-  // peak timing bonus
-  if(releasedAtPeak) base += 0.10;
-  else {
-    // if far from peak more penalty (simulate -10%)
-  }
-  // defender penalty
-  if(defenderNearby) base -= 0.4;
-  // powerups
-  if(player.powerups.hot) base = Math.max(base, 0.98);
-  if(player.powerups.double) {} // only scoring change handled elsewhere
-  return clamp(base, 0, 0.9999);
-}
-
-// shoot action: uses charge to determine release zone
-function determineReleaseZone(player){
-  // use player's charge (0..1) map to meter top->bottom where top is green
-  const charge = player.charge;
-  // top is 1, bottom 0
-  const distToHoop = Math.abs(player.x - (player.team==='blue' ? hoopRight.x : hoopLeft.x));
-  const zone = shotZoneForDistance(distToHoop);
-  // find thresholds from top
-  const greenTop = 1;
-  const greenBottom = 1 - zone.green;
-  const yellowBottom = greenBottom - zone.yellow;
-  // charge near 1 means top
-  if(charge >= greenBottom) return 'green';
-  if(charge >= yellowBottom) return 'yellow';
-  return 'red';
-}
-
-// launch ball from player towards hoop with power/arc influenced by accuracy
-function launchBallFrom(player,releaseZone,accuracy){
-  const targetHoop = player.team==='blue' ? hoopRight : hoopLeft;
-  // compute base speed toward hoop
-  const dx = targetHoop.x - player.x;
-  const dy = targetHoop.y - player.y;
-  // desired travel time influenced by accuracy (better -> ideal arc)
-  let t = clamp(0.7 + (1 - accuracy)*0.9, 0.5, 1.6); // seconds to hoop
-  // initial velocities for projectile: vx = dx/t ; vy = (dy - 0.5*g*t^2)/t
-  const g = 18;
-  const vx = dx / t;
-  const vy = (dy - 0.5 * g * t * t) / t;
-  // apply slight randomness based on release zone
-  const rng = (releaseZone==='green')?0.02: (releaseZone==='yellow'?0.06:0.18);
-  const nudgeX = (Math.random()*2-1) * rng * Math.abs(vx);
-  const nudgeY = (Math.random()*2-1) * rng * Math.abs(vy);
-  ball.holder = null;
-  player.hasBall = false;
-  ball.inAir = true;
-  ball.vx = vx + nudgeX;
-  ball.vy = vy + nudgeY;
-  ball.x = player.x + player.facing*(player.w/2+8);
-  ball.y = player.y - player.h/4 - 2;
-  // sound
-  beep(1000,0.035,0.03);
-  // if overfilled (charge at 1 and looping) overshoot possibility
-  // handled by accuracy randomness
-}
-
-// check hoop scoring
-function checkHoopScoring(){
-  // simple: if ball passes through hoop circle region from above within rim radius, score
-  const hoops = [ {team:'red',pos:hoopRight}, {team:'blue',pos:hoopLeft} ];
-  for(const h of hoops){
-    const dx = ball.x - h.pos.x, dy = ball.y - h.pos.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    // to score must pass near rim and be moving downward (vy>0)
-    if(dist < hoopRadius && ball.vy > -8){
-      // award to opposite team (if ball went into right hoop, left player scores)
-      const scoringTeam = h.team; // team on that hoop (i.e., Red hoop means red defends, Blue scored?)
-      // We'll define: BLUE (left player) scores when ball goes to right hoop (hoopRight). hoopRight.pos has team 'red' (defending)
-      const scorer = (h.pos === hoopRight) ? blue : red;
-      return {scorer, hoop:h.pos};
-    }
-  }
-  return null;
-}
-
-// collision: simple defender block if defender jumping and near shooter at release
-function defenderBlockCheck(shooter){
-  // defender is other player
-  const defender = shooter===blue?red:blue;
-  if(defender.onGround || defender.powerups.guard>0) {
-    // guard powerup increases block chance; but if directly collides while both jumping then direct block
-  }
-  // direct block if both in air and horizontally close within 48 px
-  if(!defender.onGround && !shooter.onGround){
-    if(Math.abs(defender.x - shooter.x) < 56 && Math.abs(defender.y - shooter.y) < 60){
-      return {directBlock:true, defenderNearby:true};
-    }
-  }
-  // defender near if jumping and within 70 px
-  if(!defender.onGround && Math.abs(defender.x - shooter.x) < 90 && Math.abs(defender.y - shooter.y) < 80){
-    return {directBlock:false, defenderNearby:true};
-  }
-  return {directBlock:false, defenderNearby:false};
-}
-
-// score handling
-function awardScore(player,points){
-  player.score += points;
-  if(player===blue) scoreBlueEl.textContent = player.score;
-  else scoreRedEl.textContent = player.score;
-  // sound swish
-  beep(1200,0.08,0.05);
-  // double points powerup consumed
-  if(player.powerups.double){
-    player.powerups.double = false;
-  }
-}
-
-// simple power-ups spawn & apply
-const powerups = []; // each {x,y,type,ttl}
-const powerupTypes = ['hot','speed','guard','double'];
-function spawnPowerup(){
-  const x = court.left + 120 + Math.random()*(court.right - court.left - 240);
-  const y = court.top + 40 + Math.random()*80;
-  const type = powerupTypes[Math.floor(Math.random()*powerupTypes.length)];
-  powerups.push({x,y,type,ttl:10});
-}
-
-// apply when player picks
-function applyPowerup(player,pu){
-  if(pu.type==='hot') player.powerups.hot = true;
-  if(pu.type==='speed') player.powerups.speed = 10; // 10 seconds
-  if(pu.type==='guard') player.powerups.guard = 6;
-  if(pu.type==='double') player.powerups.double = true;
-  beep(1400,0.06,0.06);
-}
-
-// AI Logic (CPU)
-function cpuThink(dt){
-  const p = red;
-  const difficulty = aiSelect.value || 'normal';
-  const nowt = currentTime;
-  // very simple AI: move towards ball when not having it; shoot when near hoop or when has ball
-  // difficulty impacts timing (random delay in release), and shot zone preference
-  if(!p.hasBall){
-    // decide movement: approach ball's x
-    if(Math.abs(p.x - ball.x) > 40){
-      if(p.x > ball.x) p.vx = -p.speed;
-      else p.vx = p.speed;
-      p.facing = p.vx>=0?1:-1;
-    } else {
-      p.vx = 0;
-    }
-    // try to jump to intercept if ball is in air and near
-    if(ball.holder === null && ball.inAir && Math.abs(ball.x - p.x) < 120 && p.onGround){
-      // chance to jump depends on difficulty
-      const jumpChance = difficulty === 'easy'? 0.03 : difficulty==='normal'?0.08: difficulty==='hard'?0.15 : 0.28;
-      if(Math.random() < jumpChance) { p.vy = -p.jumpPower* (difficulty==='insane'?1.1:1); p.jumping=true; beep(600,0.03,0.02); }
-    }
-  } else {
-    // has ball -> approach scoring position and shoot
-    // aim for hoop (right hoop)
-    // if near shooting sweet spot and shoot cooldown finished, start charge then release
-    const goalX = hoopRight.x - 40;
-    const dist = Math.abs(p.x - goalX);
-    if(dist > 12) {
-      p.vx = p.x < goalX ? p.speed : -p.speed;
-      p.facing = p.vx>=0?1:-1;
-    } else {
-      p.vx = 0;
-    }
-    // start holding shoot if not yet
-    if(!p.holdShoot && p.shotCooldown<=0){
-      p.holdShoot = true;
-      p.charge = 0.01;
-    } else if(p.holdShoot){
-      // decide release timing based on difficulty: higher diff -> release mostly green
-      const desired = difficulty === 'easy' ? 0.4 : difficulty==='normal'?0.7: difficulty==='hard'?0.86:0.93;
-      // small randomness
-      if(p.charge >= desired || Math.random() < 0.02){
-        // release
-        simulatePlayerShot(p);
-      }
-    }
-  }
-}
-
-// simulate shot logic for a player (cpu or human) when they release
-function simulatePlayerShot(player){
-  if(!player.hasBall) return;
-  const dcheck = defenderBlockCheck(player);
-  const releaseZone = determineReleaseZone(player);
-  const distToHoop = Math.abs(player.x - (player.team==='blue'?hoopRight.x:hoopLeft.x));
-  const releasedAtPeak = !player.onGround; // simple: if in-air release at peak = bonus
-  let accuracy = computeShotAccuracy(player, releaseZone, distToHoop, releasedAtPeak, dcheck.defenderNearby, dcheck.directBlock);
-  // if direct block -> immediate miss and ball bounces to defender
-  if(dcheck.directBlock){
-    // block: defender gets ball
-    const defender = player===blue?red:blue;
-    // apply block outcome
-    ball.holder = defender;
-    defender.hasBall = true;
-    player.hasBall = false;
-    ball.x = defender.x; ball.y = defender.y - 20;
-    beep(220,0.05,0.06);
-    player.holdShoot = false; player.charge = 0;
-    player.shotCooldown = 0.6;
-    return;
-  }
-  player.holdShoot = false;
-  player.chargeDir = 1;
-  player.lastShotTime = now();
-  player.shotCooldown = 0.8;
-  // get final accuracy including randomness
-  const rand = Math.random();
-  const success = rand < accuracy;
-  // launch ball
-  launchBallFrom(player, releaseZone, accuracy);
-  // if success, ball will travel and go in if physics lines up; otherwise may hit rim and bounce - we'll check when ball reaches hoop
-  // note: if player has hot powerup, guarantee success
-  if(player.powerups.hot) {
-    // nudge velocities to make swish (more ideal)
-    ball.vx *= 0.96; ball.vy *= 0.96;
-  } else if(!success){
-    // add random deviation to cause miss
-    ball.vx += (Math.random()*2-1) * 60 * (1-accuracy);
-    ball.vy += (Math.random()*2-1) * 60 * (1-accuracy);
-  }
-  player.hasBall = false;
-  ball.holder = null;
-  // reduce hot double on shot use
-  if(player.powerups.hot) player.powerups.hot=false;
-  // jump penalty/bonus handled via releasedAtPeak earlier
-}
-
-// collisions and pickup
-function checkPickups(){
-  // ball pickup on ground if near player
-  if(ball.holder===null && Math.abs(ball.y - (court.bottom-2 - ball.radius)) < 5){
-    // find nearest player in range
-    const candidates = [blue, red];
-    for(const p of candidates){
-      if(Math.abs(p.x - ball.x) < 36 && Math.abs(p.y - ball.y) < 60 && p.onGround){
-        ball.holder = p;
-        p.hasBall = true;
-        ball.vx = 0; ball.vy = 0;
-        break;
-      }
-    }
-  }
-  // powerup pickups
-  for(let i=powerups.length-1;i>=0;i--){
-    const pu = powerups[i];
-    // display TTL
-    pu.ttl -= dtGlobal;
-    if(pu.ttl <= 0){ powerups.splice(i,1); continue;}
-    if(Math.hypot(blue.x - pu.x, blue.y - pu.y) < 36){ applyPowerup(blue,pu); powerups.splice(i,1); continue;}
-    if(Math.hypot(red.x - pu.x, red.y - pu.y) < 36){ applyPowerup(red,pu); powerups.splice(i,1); continue;}
-  }
-}
-
-// Rendering helpers
-function drawCourt(ctx){
-  // floor
-  ctx.fillStyle='#c07a3e';
-  ctx.fillRect(court.left, court.top, court.right - court.left, court.bottom - court.top);
-  // center line
-  ctx.strokeStyle='rgba(0,0,0,0.18)';
-  ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(court.midX, court.top); ctx.lineTo(court.midX, court.bottom); ctx.stroke();
-  // side lines
-  ctx.strokeStyle='rgba(255,255,255,0.06)';
-  ctx.strokeRect(court.left, court.top, court.right-court.left, court.bottom-court.top);
-  // hoop backboards & rims
-  // left backboard
-  ctx.fillStyle='rgba(255,255,255,0.9)';
-  ctx.fillRect(hoopLeft.x-32, hoopLeft.y-62, 64, 6);
-  ctx.fillStyle='#cc0000'; ctx.fillRect(hoopLeft.x-28, hoopLeft.y-20, 56, 6);
-  ctx.beginPath(); ctx.strokeStyle='#663300'; ctx.lineWidth=3; ctx.arc(hoopLeft.x, hoopLeft.y, hoopRadius, 0, Math.PI*2); ctx.stroke();
-  // right
-  ctx.fillStyle='rgba(255,255,255,0.9)';
-  ctx.fillRect(hoopRight.x-32, hoopRight.y-62, 64, 6);
-  ctx.fillStyle='#cc0000'; ctx.fillRect(hoopRight.x-28, hoopRight.y-20, 56, 6);
-  ctx.beginPath(); ctx.strokeStyle='#663300'; ctx.lineWidth=3; ctx.arc(hoopRight.x, hoopRight.y, hoopRadius, 0, Math.PI*2); ctx.stroke();
-}
-
-// draw scoreboard + UI overlays (some handled in DOM)
-function drawUI(){
-  // draw play/pause icon on button
-  playPauseBtn.textContent = gamePaused ? '▶' : '⏸';
-  // time
-  timeBox.textContent = Math.ceil(matchTimer);
-}
-
-// MAIN LOOP
-let currentTime = 0;
-let dtGlobal = 0;
-let matchTimer = matchLength;
-let gameOver=false;
-
-// reset game
-function resetGame(){
-  blue = new Player('blue', court.left + 120, court.bottom - 24, {left:'ArrowLeft', right:'ArrowRight', jump:'ArrowUp', shoot:'Space'}, false);
-  red = new Player('red', court.right - 120, court.bottom - 24, {left:'a', right:'d', jump:'w', shoot:'f'}, true);
-  red.isCPU = true;
-  ball.x = blue.x + 26; ball.y = blue.y - 20; ball.vx = 0; ball.vy = 0; ball.holder = blue; ball.inAir=false;
-  blue.hasBall = true; red.hasBall=false;
-  blue.score=0; red.score=0;
-  scoreBlueEl.textContent = '0'; scoreRedEl.textContent = '0';
-  matchTimer = matchLength;
-  gameOver=false;
-  powerups.length=0;
-  messageEl.style.display='none';
-}
-
-// initialize
-resetGame();
-
-// Input handling
-const keys = {};
-window.addEventListener('keydown', e=>{
-  const k = e.key;
-  keys[k]=true;
-  // prevent scrolling for arrows and space
-  if(['ArrowUp','ArrowLeft','ArrowRight',' '].includes(k) || k==='Space') e.preventDefault();
-});
-window.addEventListener('keyup', e=>{
-  const k = e.key;
-  keys[k]=false;
-});
-
-// handle play/pause
-playPauseBtn.addEventListener('click', ()=>{
-  gamePaused = !gamePaused;
-  playPauseBtn.textContent = gamePaused ? '▶' : '⏸';
-  if(!gamePaused){ lastTs = performance.now(); requestAnimationFrame(mainLoop); }
-});
-
-// small message
-function showMessage(t){
-  messageEl.textContent = t;
-  messageEl.style.display='block';
-  setTimeout(()=>{ messageEl.style.display='none'; }, 2200);
-}
-
-// main loop
-function mainLoop(ts){
-  if(gamePaused || gameOver) return;
-  if(!lastTs) lastTs = ts;
-  let dt = (ts - lastTs)/1000;
-  if(dt > 0.05) dt = 0.05;
-  lastTs = ts;
-  currentTime = ts/1000;
-  dtGlobal = dt;
-
-  update(dt);
-  render();
-
-  if(!gamePaused && !gameOver) requestAnimationFrame(mainLoop);
-}
-
-// update function
-function update(dt){
-  // timers
-  matchTimer = Math.max(0, matchTimer - dt);
-  if(matchTimer <= 0){
-    endMatch();
-  }
-
-  // player controls (blue human)
-  // horizontal
-  let moveLeft = keys['ArrowLeft'];
-  let moveRight = keys['ArrowRight'];
-  blue.vx = 0;
-  if(moveLeft) { blue.vx = -blue.speed; blue.facing=-1; }
-  if(moveRight) { blue.vx = blue.speed; blue.facing=1; }
-
-  // jump
-  if(keys['ArrowUp'] && blue.onGround){
-    blue.vy = -blue.jumpPower; blue.jumping=true; blue.onGround=false; beep(600,0.03,0.02);
-  }
-  // shoot hold
-  if(keys[' '] || keys['Space']){
-    // require player has ball
-    if(blue.hasBall && blue.shotCooldown <= 0) blue.holdShoot = true;
-  } else if(blue.holdShoot){
-    // release shoot
-    simulatePlayerShot(blue);
-  }
-
-  // CPU think
-  cpuThink(dt);
-
-  // update players
-  blue.update(dt);
-  red.update(dt);
-
-  // players friction
-  blue.vx *= 0.96; red.vx *= 0.96;
-
-  // ball update
-  ball.update(dt);
-
-  // pick ups & powerups
-  checkPickups();
-
-  // check scoring when ball near hoop
-  const sc = checkHoopScoring();
-  if(sc){
-    const scorer = sc.scorer;
-    // scoring points = 2 or 3 if distance > 360
-    const distToHoop = Math.abs(scorer.x - (scorer.team==='blue'?hoopRight.x:hoopLeft.x));
-    const pts = distToHoop>360?3:2;
-    const awarded = scorer.powerups.double ? pts*2 : pts;
-    awardScore(scorer, awarded);
-    // reset ball to defender on other side
-    const opposite = scorer===blue ? red : blue;
-    ball.holder = opposite; opposite.hasBall = true;
-    ball.x = opposite.x; ball.y = opposite.y - 24;
-    ball.vx = 0; ball.vy = 0; ball.inAir=false;
-    // check win condition firstToScore
-    if(firstToScore && scorer.score >= firstToScore){
-      endMatch(scorer);
-    }
-  }
-
-  // auto pick up ball if small velocity & near player
-  if(!ball.holder && !ball.inAir && ball.vx===0 && ball.vy===0){
-    if(Math.hypot(blue.x - ball.x, blue.y - ball.y) < 48){ ball.holder = blue; blue.hasBall=true; }
-    else if(Math.hypot(red.x - ball.x, red.y - ball.y) < 48){ ball.holder = red; red.hasBall=true; }
-  }
-
-  // powerup spawn occasionally
-  if(Math.random() < dt * 0.06){ // about every ~17 sec on avg? random - tweak
-    if(powerups.length < 2) spawnPowerup();
-  }
-
-  // CPU sometimes steals when near
-  if(red.hasBall && blue!==null){
-    // if red holds ball and blue close enough, blue tries to steal on jump (for singleplayer oddity)
-    // not implemented for simplicity
-  }
-
-  // update DOM UI
-  drawUI();
-
-  // end early if someone reached big score limit
-  if(firstToScore && (blue.score >= firstToScore || red.score >= firstToScore)){
-    endMatch(blue.score>red.score?blue:red);
-  }
-}
-
-// end match
-function endMatch(winner){
-  gameOver = true;
-  let text = "Time!";
-  if(winner){
-    text = (winner===blue ? 'BLUE' : 'RED') + ' wins!';
-  } else {
-    if(blue.score === red.score) text = "Draw!";
-    else text = (blue.score > red.score ? 'BLUE wins!' : 'RED wins!');
-  }
-  showMessage(text);
-  // stop loop
-}
-
-// rendering
-function render(){
-  ctx.clearRect(0,0,W,H);
-  // background audience tint
-  ctx.fillStyle = '#111';
-  ctx.fillRect(0,0,W,H);
-  // court
-  drawCourt(ctx);
-  // draw powerups
-  for(const pu of powerups){
-    ctx.save();
-    ctx.translate(pu.x, pu.y);
-    ctx.beginPath(); ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.fillRect(-18,-12,36,24);
-    ctx.fillStyle = pu.type==='hot' ? '#ffb84d' : pu.type==='speed' ? '#7ec8ff' : pu.type==='guard' ? '#b5ffb4' : '#ffd6ff';
-    ctx.font='12px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(pu.type[0].toUpperCase(), 0, 0);
-    ctx.restore();
-  }
-  // shot meters (draw before players so they appear beside)
-  drawShotMeter(ctx, blue);
-  drawShotMeter(ctx, red);
-
-  // players
-  blue.draw(ctx);
-  red.draw(ctx);
-
-  // ball on top
-  ball.draw(ctx);
-
-  // HUD: scores/time already in DOM, but draw small center pause indicator
-  if(gamePaused){
-    ctx.fillStyle='rgba(0,0,0,0.5)';
-    ctx.fillRect(W/2-60, H/2-30, 120, 60);
-    ctx.fillStyle='#fff'; ctx.font='20px sans-serif'; ctx.textAlign='center';
-    ctx.fillText('PAUSED', W/2, H/2+8);
-  }
-
-  // show match timer big
-  ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(12,12,110,44);
-  ctx.fillStyle='#fff'; ctx.font='22px monospace'; ctx.textAlign='left';
-  ctx.fillText('Time: ' + Math.ceil(matchTimer), 20, 40);
-}
-
-// input release handling for human shoot (space)
-window.addEventListener('keyup', (e)=>{
-  if(e.key === ' ' || e.key==='Space') {
-    if(blue.holdShoot) simulatePlayerShot(blue);
-    blue.holdShoot=false;
-  }
-});
-
-// small game tick to ensure continuous animation
-let accumulated = 0;
-let runLoop = ()=>{ if(!gamePaused && !gameOver) { requestAnimationFrame(mainLoop); } };
-requestAnimationFrame(mainLoop);
-
-// initial hints
-showMessage('60s Quick Game — First to 21 optional. Press ▶/⏸ to pause.');
-
-// Restart on difficulty change
-aiSelect.addEventListener('change', ()=>{ resetGame(); });
-
-// expose reset handy
-window.resetGame = resetGame;
-
-</script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <script>
+    window.addEventListener('DOMContentLoaded', () => {
+
+        // --- DOM Elements ---
+        const gameContainer = document.querySelector('.game-container');
+        const canvas = document.getElementById('gameCanvas');
+        const allMenus = document.querySelectorAll('.ui-overlay');
+        const mainMenu = document.getElementById('main-menu');
+        const gameSetupMenu = document.getElementById('game-setup-menu');
+        const gameOverMenu = document.getElementById('game-over-menu');
+        const helpMenu = document.getElementById('help-menu');
+        const pauseMenu = document.getElementById('pause-menu');
+        const scoreboard = document.getElementById('scoreboard');
+        const gameMessage = document.getElementById('game-message');
+        const pauseBtn = document.getElementById('pause-btn');
+        const helpBtn = document.getElementById('help-btn');
+        const homeBtn = document.getElementById('home-btn');
+        const shotMeter = document.getElementById('shot-meter');
+        const shotMeterBar = document.getElementById('shot-meter-bar');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const startOtBtn = document.getElementById('start-ot-btn');
+
+        // --- Game State & Config ---
+        let gameState = 'menu';
+        let gameMode = '', numPlayers = 1, cpuDifficulty = 'medium';
+        let p1Score = 0, p2Score = 0, timer = 60, timerInterval, overtimeLevel = 0;
+        let tipOffStarted = false;
+        let shotClockExpired = false;
+        let isMuted = false;
+        const keys = {};
+        const keyPressHistory = {};
+        let announcerVoice = null;
+        let waveState = { active: false, startTime: 0, duration: 6000 };
+
+        // --- 3D Scene Constants ---
+        let scene, camera, renderer, players, ball;
+        const hoops = [];
+        const crowdMeshes = [];
+        let spotlight;
+        const court = { width: 80, depth: 40 };
+        const GRAVITY = -50;
+        const PLAYER_SPEED = 20; // Base speed for human players
+        const JUMP_FORCE = 22;
+        const CPU_DIFFICULTY = {
+            easy:   { speed: 0.75, accuracy: 0.5, stealChance: 0.005, blockChance: 0.01, crossoverChance: 0.005 },
+            medium: { speed: 1.0,  accuracy: 0.7, stealChance: 0.01,  blockChance: 0.02, crossoverChance: 0.01 },
+            hard:   { speed: 1.6,  accuracy: 1.0, stealChance: 0.06,  blockChance: 0.03, crossoverChance: 0.02 }
+        };
+
+        // --- Audio Engine ---
+        let musics = [];
+        let currentMusicIndex = -1;
+        const cheerFilter = new Tone.AutoFilter("2n").toDestination().start();
+        const sounds = {
+            bounce: new Tone.MembraneSynth({volume: -5}).toDestination(),
+            shoot: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(),
+            swoosh: new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.01, decay: 0.15, sustain: 0, release: 0.1 }, volume: -3 }).toDestination(),
+            green: new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.1 } }).toDestination(),
+            whistle: new Tone.Synth({ oscillator: { type: 'sine' }, frequency: 1200, envelope: { attack: 0.1, decay: 0.2, sustain: 0.1, release: 0.5 } }).toDestination(),
+            buzzer: new Tone.Synth({ oscillator: { type: 'sawtooth' }, frequency: 150, envelope: { attack: 0.01, decay: 0.5, sustain: 0.1, release: 0.2 } }).toDestination(),
+            countdown: new Tone.Synth({ oscillator: { type: 'sine' }, frequency: 880, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).toDestination(),
+            backboard: new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.1, sustain: 0 }, volume: -5 }).toDestination(),
+            cheer: new Tone.NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.2, decay: 2.5, sustain: 0.1, release: 1.0 }, volume: 10 }).connect(cheerFilter),
+        };
+        
+        function initAllMusic() {
+            // Music 1 (Original)
+            const synth1 = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "pulse", width: 0.2 }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.2 } }).toDestination();
+            const bass1 = new Tone.MonoSynth({ oscillator: { type: "fmsquare", modulationType: "sawtooth", modulationIndex: 0.5 }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 } }).toDestination();
+            const melodyPart1 = new Tone.Sequence((time, note) => { synth1.triggerAttackRelease(note, "16n", time); }, ["C4", ["E4", "G4"], "C5", null, "G4", null, "E4", null], "8n");
+            const bassPart1 = new Tone.Sequence((time, note) => { bass1.triggerAttackRelease(note, "8n", time); }, ["C2", "G2", "A2", "F2"], "2n");
+            musics.push({ parts: [melodyPart1, bassPart1], bpm: 120 });
+
+            // Music 2 (Uptempo)
+            const synth2 = new Tone.FMSynth({ harmonicity: 3, modulationIndex: 10, detune: 0, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 1 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.5, decay: 0.01 } }).toDestination();
+            const melodyPart2 = new Tone.Sequence((time, note) => { synth2.triggerAttackRelease(note, "8n", time); }, ["F4", "G4", "A#4", "G4", "F4", null, "F4", "D#4"], "8n");
+            const bassPart2 = new Tone.Sequence((time, note) => { bass1.triggerAttackRelease(note, "4n", time); }, ["F2", "A#1", "D#2", "C2"], "1n");
+            musics.push({ parts: [melodyPart2, bassPart2], bpm: 140 });
+
+            // Music 3 (Chill)
+            const synth3 = new Tone.AMSynth({ harmonicity: 1.5, detune: 0, oscillator: { type: "fatsawtooth" }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 1 } }).toDestination();
+            const melodyPart3 = new Tone.Sequence((time, note) => { synth3.triggerAttackRelease(note, "4n", time); }, [["C4", "E4"], "G4", ["A4", "G4"], "E4"], "4n");
+            const bassPart3 = new Tone.Sequence((time, note) => { bass1.triggerAttackRelease(note, "2n", time); }, ["C2", "G1", "A1", "E1"], "1m");
+            musics.push({ parts: [melodyPart3, bassPart3], bpm: 100 });
+        }
+        
+        function switchMusic(index) {
+            if (index === currentMusicIndex || !musics[index]) return;
+
+            if (currentMusicIndex !== -1) {
+                musics[currentMusicIndex].parts.forEach(part => part.stop(0));
+            }
+            
+            currentMusicIndex = index;
+            const newMusic = musics[currentMusicIndex];
+            Tone.Transport.bpm.value = newMusic.bpm;
+            newMusic.parts.forEach(part => part.start(0));
+            
+            if (Tone.Transport.state !== 'started') {
+                Tone.Transport.start();
+            }
+        }
+        
+        // --- Initialize 3D World ---
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a2b1f);
+
+            camera = new THREE.PerspectiveCamera(60, 1000 / 600, 0.1, 1000);
+            camera.position.set(0, 30, 65);
+            camera.lookAt(0, 5, 0);
+
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(1000, 600);
+            renderer.shadowMap.enabled = true;
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            directionalLight.position.set(0, 50, 20);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.left = -60;
+            directionalLight.shadow.camera.right = 60;
+            directionalLight.shadow.camera.top = 60;
+            directionalLight.shadow.camera.bottom = -60;
+            scene.add(directionalLight);
+
+            spotlight = new THREE.SpotLight(0xffffff, 0.5, 100, Math.PI / 8, 0.5);
+            spotlight.castShadow = true;
+            scene.add(spotlight);
+            scene.add(spotlight.target);
+        }
+
+        // --- Model Creation ---
+        function createCourt() {
+            const courtGroup = new THREE.Group();
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x6B4423 }); // Darker brown
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(court.width, court.depth), floorMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            courtGroup.add(ground);
+            
+            // --- UPDATED: Add court logo ---
+            const textureLoader = new THREE.TextureLoader();
+            
+            // NOTE: We need the full file ID for the uploaded image.
+            const logoTexture = textureLoader.load('uploaded:Screenshot_2025-10-02_12.57.56_PM-removebg-preview.png-06a8ca23-70c6-4fdd-96ce-f3fe085fa339');
+            
+            // The logo has a dark background and text, so we'll apply a white color filter
+            // using the MeshBasicMaterial's color property and its alpha channel from the texture.
+            const logoGeometry = new THREE.PlaneGeometry(15, 15); // Adjusted size to fit well
+            const logoMaterial = new THREE.MeshBasicMaterial({ 
+                map: logoTexture, 
+                transparent: true,
+                depthWrite: false, // Helps with transparency rendering
+                color: 0xffffff, // Set the color of the logo to WHITE
+            });
+            const logoMesh = new THREE.Mesh(logoGeometry, logoMaterial);
+            logoMesh.position.y = 0.05; // Slightly above the floor to prevent z-fighting
+            logoMesh.rotation.x = -Math.PI / 2; // Lay it flat on the court
+            courtGroup.add(logoMesh);
+            
+            // Court Lines
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+            
+            // Half-court line (raised slightly to be on top of the logo)
+            const halfCourtPoints = [new THREE.Vector3(0, 0.06, -court.depth/2), new THREE.Vector3(0, 0.06, court.depth/2)];
+            const halfCourtGeo = new THREE.BufferGeometry().setFromPoints(halfCourtPoints);
+            const halfCourtLine = new THREE.Line(halfCourtGeo, lineMaterial);
+            courtGroup.add(halfCourtLine);
+            
+            scene.add(courtGroup);
+        }
+
+        function createHoop(x, z, rotationY) {
+            const hoopGroup = new THREE.Group();
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const mainPole = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 10, 16), poleMat);
+            mainPole.position.y = 5; mainPole.castShadow = true;
+            
+            const backboardMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1 });
+            const backboardMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7, 10), backboardMat);
+            backboardMesh.castShadow = true;
+            backboardMesh.position.set(2, 12, 0);
+            
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(2.5, 0.3, 8, 32), new THREE.MeshStandardMaterial({ color: 0xfd9500 }));
+            rim.position.set(4.5, 10, 0);
+            rim.rotation.x = Math.PI / 2;
+            
+            const netGeo = new THREE.CylinderGeometry(2.5, 1.5, 3, 12, 1, true);
+            const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.8 });
+            const net = new THREE.Mesh(netGeo, netMat);
+            net.position.set(4.5, 8.5, 0);
+
+            hoopGroup.add(mainPole, backboardMesh, rim, net);
+            hoopGroup.position.set(x, 0, z); hoopGroup.rotation.y = rotationY;
+            scene.add(hoopGroup);
+
+            const scoreZone = new THREE.Vector3();
+            rim.getWorldPosition(scoreZone);
+            const backboardBox = new THREE.Box3().setFromObject(backboardMesh);
+            hoops.push({ obj: hoopGroup, rim: rim, scoreZone: scoreZone, backboardBox: backboardBox });
+        }
+        
+        function createRandomSpectatorMesh() {
+            const shapes = [
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.SphereGeometry(0.7, 8, 8),
+                new THREE.CylinderGeometry(0.5, 0.5, 1.2, 8),
+                new THREE.ConeGeometry(0.6, 1.5, 3) // Triangular Prism approx
+            ];
+            const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(Math.random(), Math.random(), Math.random()) });
+            const geo = shapes[Math.floor(Math.random() * shapes.length)];
+            return new THREE.Mesh(geo, mat);
+        }
+        
+        function createCrowdSection(position, rotation, numSeats = 40) {
+             const crowdGroup = new THREE.Group();
+            const numRows = 4;
+            for (let row = 0; row < numRows; row++) {
+                for (let i = 0; i < numSeats; i++) {
+                    const spectator = createRandomSpectatorMesh();
+                    const scale = Math.random() * 0.4 + 0.8;
+                    spectator.scale.set(scale, scale, scale);
+                    spectator.position.set((i * 2) - numSeats, (row * 2) + 1, -(row * 3));
+                    spectator.userData = { cheerUntil: 0, baseY: spectator.position.y };
+                    crowdGroup.add(spectator);
+                    crowdMeshes.push(spectator);
+                }
+            }
+            crowdGroup.position.copy(position); crowdGroup.rotation.y = rotation; scene.add(crowdGroup);
+        }
+
+        function createAllCrowds() {
+            createCrowdSection(new THREE.Vector3(0, 0, -court.depth / 2 - 8), 0);
+            createCrowdSection(new THREE.Vector3(0, 0, court.depth / 2 + 8), Math.PI);
+            createCrowdSection(new THREE.Vector3(-court.width / 2 - 8, 0, 0), -Math.PI / 2, 20);
+            createCrowdSection(new THREE.Vector3(court.width / 2 + 8, 0, 0), Math.PI / 2, 20);
+        }
+        
+        function createStickman(color) {
+            const stickman = new THREE.Group();
+            const material = new THREE.MeshStandardMaterial({ color: color });
+            
+            const head = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 16), material);
+            head.position.y = 5.5;
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 4, 8), material);
+            body.position.y = 2;
+            
+            const armGeo = new THREE.CylinderGeometry(0.25, 0.25, 2.5, 8);
+            const rightArm = new THREE.Mesh(armGeo, material);
+            rightArm.position.set(-0.75, 3, 0);
+            rightArm.rotation.z = Math.PI / 6;
+            const leftArm = new THREE.Mesh(armGeo, material);
+            leftArm.position.set(0.75, 3, 0);
+            leftArm.rotation.z = -Math.PI / 6;
+
+            stickman.add(head, body, rightArm, leftArm);
+            stickman.traverse(child => { child.castShadow = true; });
+            stickman.userData = { bbox: new THREE.Box3(), arms: { right: rightArm, left: leftArm } };
+            scene.add(stickman);
+            return stickman;
+        }
+
+        // --- Core Game Logic ---
+        function initGame(isOvertime = false) {
+            gameState = 'playing';
+            tipOffStarted = false;
+            shotClockExpired = false;
+            if (!isOvertime) {
+                p1Score = 0; 
+                p2Score = 0;
+            }
+            document.getElementById('timer-container').style.display = (gameMode === 'time' || overtimeLevel > 0) ? 'flex' : 'none';
+            timer = overtimeLevel > 0 ? 15 : (gameMode === 'time' ? 60 : 0);
+            
+            startGameBtn.classList.remove('hidden');
+            
+            if (players) players.forEach(p => scene.remove(p.obj));
+            if (ball) scene.remove(ball.obj);
+            
+            players = []; ball = {};
+
+            const p1 = { id: 1, obj: createStickman(0xe74c3c), hasBall: false, isJumping: false, isShooting: false, shotPower: 0, shotPowerIncreasing: true, isCPU: false, velocity: new THREE.Vector3(), onGround: true, stealCooldown: 0, direction: new THREE.Vector2(1, 0) };
+            p1.obj.position.set(-10, 0, 0);
+            players.push(p1);
+
+            const p2 = { id: 2, obj: createStickman(0x3498db), hasBall: false, isJumping: false, isShooting: false, shotPower: 0, shotPowerIncreasing: true, isCPU: numPlayers === 1, velocity: new THREE.Vector3(), onGround: true, stealCooldown: 0, cpuState: 'IDLE', cpuTimer: 0, direction: new THREE.Vector2(-1, 0) };
+            p2.obj.position.set(10, 0, 0);
+            players.push(p2);
+
+            ball.obj = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), new THREE.MeshStandardMaterial({ color: 0xf39c12 }));
+            scene.add(ball.obj); 
+            ball.obj.castShadow = true;
+            ball.velocity = new THREE.Vector3(0, 0, 0); 
+            ball.scored = false;
+            ball.isGuaranteed = false;
+            ball.passedThroughRim = null;
+            ball.reboundableTime = 0;
+            ball.lastBounceTime = 0;
+            ball.obj.userData.bbox = new THREE.Box3();
+            ball.crossoverTween = null;
+            ball.dribble = { height: 3.5, goingDown: true, speed: 40 };
+            ball.obj.position.set(0, 15, 0); // Tip-off height
+
+            updateScoreboard();
+            
+            if (timerInterval) clearInterval(timerInterval);
+            updateButtonVisibility();
+        }
+        
+        function startTimer() {
+            if (tipOffStarted) return;
+            tipOffStarted = true;
+            ball.velocity.set(0, -10, 0); // Start the tip-off
+            sounds.whistle.triggerAttackRelease("G5", "8n", Tone.now());
+            if(gameMode === 'time' || overtimeLevel > 0) {
+                timerInterval = setInterval(() => {
+                    if (gameState === 'playing') {
+                        timer--;
+                        if (timer <= 5 && timer > 0) {
+                            sounds.countdown.triggerAttackRelease("A5", "16n", Tone.now());
+                        }
+                        updateScoreboard();
+                        if (timer <= 0) {
+                             clearInterval(timerInterval);
+                             sounds.buzzer.triggerAttackRelease("G2", "1n", Tone.now());
+                             shotClockExpired = true;
+                        }
+                    }
+                }, 1000);
+            }
+        }
+        
+        function jumpAndShoot(p) {
+            if (!p || !p.isShooting) return;
+            shootBall(p);
+            p.isShooting = false;
+        }
+
+        function update(delta, time) {
+            if (shotClockExpired) {
+                const ballHolder = players.find(p => p.hasBall);
+                if (ballHolder || (ball.obj.position.y < 1.1 && Math.abs(ball.velocity.y) < 2)) {
+                    let winnerText;
+                    if (p1Score > p2Score) winnerText = "Player 1 Wins!";
+                    else if (p2Score > p1Score) winnerText = numPlayers === 1 ? "CPU Wins!" : "Player 2 Wins!";
+                    else winnerText = "Time's Up!"; 
+                    endGame(winnerText);
+                    shotClockExpired = false; 
+                }
+            }
+
+            players.forEach(p => {
+                p.obj.userData.bbox.setFromObject(p.obj);
+                if (tipOffStarted) {
+                    p.isCPU ? updateCPU(p, delta) : updatePlayer(p, delta, time);
+                }
+            });
+            
+            const shootingPlayer = players.find(p => p.isShooting && !p.isCPU);
+            if (shootingPlayer) {
+                updateShotMeter(shootingPlayer);
+            } else {
+                shotMeter.style.display = 'none';
+            }
+            
+            ball.obj.userData.bbox.setFromObject(ball.obj);
+            const ballHolder = players.find(p => p.hasBall);
+            if (ballHolder) {
+                const holderPos = ballHolder.obj.position;
+                let handOffset = new THREE.Vector3(ballHolder.direction.x * 1.5, 3.5, 0);
+                
+                if (ballHolder.onGround) {
+                     if (ball.dribble.goingDown) {
+                        ball.dribble.height -= ball.dribble.speed * delta;
+                        if (ball.dribble.height < 1.0) {
+                            ball.dribble.height = 1.0;
+                            ball.dribble.goingDown = false;
+                            const now = Tone.now(); if (now - ball.lastBounceTime > 0.1) { sounds.bounce.triggerAttackRelease("C2", "8n", now, 0.5); ball.lastBounceTime = now; }
+                        }
+                    } else {
+                        ball.dribble.height += ball.dribble.speed * delta;
+                        if (ball.dribble.height > 3.5) {
+                            ball.dribble.height = 3.5;
+                            ball.dribble.goingDown = true;
+                        }
+                    }
+                    handOffset.y = ball.dribble.height;
+                    
+                    const dribbleProgress = (ball.dribble.height - 1.0) / (3.5 - 1.0);
+                    const armAngleOffset = dribbleProgress * (Math.PI / 8);
+                    ballHolder.obj.userData.arms.right.rotation.z = Math.PI / 6 + armAngleOffset;
+                    ballHolder.obj.userData.arms.left.rotation.z = -Math.PI / 6 - armAngleOffset;
+
+                } else { handOffset.y = 3.5; }
+
+                if (ball.crossoverTween) {
+                    const elapsed = Date.now() - ball.crossoverTween.startTime;
+                    if (elapsed < ball.crossoverTween.duration) {
+                         const progress = elapsed / ball.crossoverTween.duration;
+                         const crossZ = Math.sin(progress * Math.PI) * ball.crossoverTween.strength;
+                         handOffset.z = crossZ;
+                    } else { ball.crossoverTween = null; }
+                }
+                ball.obj.position.copy(holderPos).add(handOffset);
+                ball.velocity.set(0, 0, 0);
+                spotlight.position.set(ball.obj.position.x, 20, ball.obj.position.z);
+                spotlight.target.position.copy(ball.obj.position);
+
+            } else { if (tipOffStarted) { updateBall(delta); } }
+            
+            animateCrowd(time);
+            renderer.render(scene, camera);
+        }
+        
+        let targetVel = new THREE.Vector3(); 
+        function updatePlayer(p, delta, time) {
+            // Both P1 and P2 use the same moveSpeed (PLAYER_SPEED) in 2P mode for equal performance.
+            targetVel.set(0,0,0);
+            const moveSpeed = PLAYER_SPEED; 
+            const playerKeys = p.id === 1 ?
+                { left: 'KeyA', right: 'KeyD', up: 'KeyW', down: 'KeyS', action: 'KeyF', steal: 'KeyG' } :
+                { left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp', down: 'ArrowDown', action: 'KeyK', steal: 'KeyL' };
+
+            if (keys[playerKeys.left]) targetVel.x -= moveSpeed;
+            if (keys[playerKeys.right]) targetVel.x += moveSpeed;
+            if (keys[playerKeys.up]) targetVel.z -= moveSpeed;
+            if (keys[playerKeys.down]) targetVel.z += moveSpeed;
+            
+            if (targetVel.length() > 0) {
+                 p.direction.set(targetVel.x, targetVel.z).normalize();
+                 p.obj.rotation.y = Math.atan2(p.direction.x, p.direction.y);
+            }
+
+            p.velocity.x += (targetVel.x - p.velocity.x) * 0.1;
+            p.velocity.z += (targetVel.z - p.velocity.z) * 0.1;
+            
+            if (keys[playerKeys.action]) {
+                if (p.hasBall) {
+                    if (p.onGround) {
+                        p.velocity.y = JUMP_FORCE; p.onGround = false; p.isJumping = true; p.isShooting = true; p.shotPower = 0; p.shotPowerIncreasing = true;
+                    } else if (p.isShooting) {
+                        p.shotPower += (p.shotPowerIncreasing ? 1 : -1) * 2 * delta;
+                        if (p.shotPower >= 1) { p.shotPower = 1; p.shotPowerIncreasing = false; }
+                        if (p.shotPower <= 0 && !p.shotPowerIncreasing) { p.shotPower = 0; p.shotPowerIncreasing = true; }
+                    }
+                } else if (p.onGround) {
+                    p.velocity.y = JUMP_FORCE; p.onGround = false; p.isJumping = true;
+                }
+            }
+
+            p.stealCooldown -= delta;
+            if (keys[playerKeys.steal] && !p.hasBall && p.stealCooldown <= 0) {
+                const opponent = players.find(op => op.hasBall);
+                if (opponent && p.obj.position.distanceTo(opponent.obj.position) < 4 && opponent.onGround) {
+                    showMessage("STEAL!", "#f1c40f"); resetBall(p);
+                }
+                p.stealCooldown = 1;
+            }
+
+            p.velocity.y += GRAVITY * delta;
+            p.obj.position.add(p.velocity.clone().multiplyScalar(delta));
+            if (p.obj.position.y < 0) {
+                p.obj.position.y = 0; p.velocity.y = 0;
+                if(p.isJumping) { p.isJumping = false; p.onGround = true; }
+            }
+            
+            p.obj.position.x = Math.max(-court.width/2, Math.min(court.width/2, p.obj.position.x));
+            p.obj.position.z = Math.max(-court.depth/2, Math.min(court.depth/2, p.obj.position.z));
+        }
+
+        function updateCPU(cpu, delta) {
+            const humanPlayer = players[0];
+            const difficulty = CPU_DIFFICULTY[cpuDifficulty];
+            const targetHoop = hoops[0];
+            const ownHoop = hoops[1];
+            const ballHolder = players.find(p => p.hasBall);
+
+            cpu.cpuTimer -= delta;
+            if (!ballHolder) { cpu.cpuState = 'GET_BALL'; } 
+            else if (cpu.hasBall) { cpu.cpuState = 'ATTACKING'; } 
+            else { cpu.cpuState = 'DEFENDING'; }
+            
+            let targetVel = new THREE.Vector3();
+
+            if (cpu.cpuState === 'GET_BALL') {
+                const directionToBall = ball.obj.position.clone().sub(cpu.obj.position).normalize();
+                targetVel.x = directionToBall.x * PLAYER_SPEED * difficulty.speed;
+                targetVel.z = directionToBall.z * PLAYER_SPEED * difficulty.speed;
+                if (ball.obj.position.y > 5 && cpu.onGround) {
+                    cpu.velocity.y = JUMP_FORCE; cpu.onGround = false; cpu.isJumping = true;
+                }
+            }
+            else if (cpu.cpuState === 'ATTACKING') {
+                if (Math.random() < difficulty.crossoverChance && !ball.crossoverTween) {
+                    ball.crossoverTween = { startTime: Date.now(), duration: 200, strength: 2.5 };
+                }
+
+                const distanceToHoop = cpu.obj.position.distanceTo(targetHoop.obj.position);
+                const distanceToPlayer = cpu.obj.position.distanceTo(humanPlayer.obj.position);
+                
+                let moveTarget;
+                const isClearPath = Math.abs(cpu.obj.position.z - humanPlayer.obj.position.z) > 5 || cpu.obj.position.x > humanPlayer.obj.position.x;
+                
+                if (distanceToHoop < 12 && isClearPath) { moveTarget = targetHoop.obj.position.clone(); } 
+                else if (distanceToHoop < 28) { moveTarget = cpu.obj.position.clone(); moveTarget.x = targetHoop.obj.position.x + 15; }
+                else { moveTarget = targetHoop.obj.position.clone(); moveTarget.x += 25; moveTarget.z += (Math.random() - 0.5) * 20; }
+
+                if (distanceToPlayer < 8) {
+                    const awayVector = cpu.obj.position.clone().sub(humanPlayer.obj.position).normalize();
+                    moveTarget.add(awayVector.multiplyScalar(5));
+                }
+                
+                const directionToTarget = moveTarget.clone().sub(cpu.obj.position).normalize();
+                targetVel.x = directionToTarget.x * PLAYER_SPEED * difficulty.speed;
+                targetVel.z = directionToTarget.z * PLAYER_SPEED * difficulty.speed;
+                
+                const canShoot = cpu.cpuTimer <= 0 && distanceToHoop < 35 && distanceToPlayer > 5;
+                if (canShoot) {
+                    cpu.isShooting = true;
+                    const idealShotPower = 0.92;
+                    const accuracyError = (1 - difficulty.accuracy) * 0.15;
+                    const finalShotPower = idealShotPower + (Math.random() - 0.5) * accuracyError;
+                    cpu.shotPower = finalShotPower;
+                    setTimeout(() => { if (cpu.isShooting) jumpAndShoot(cpu); }, 200);
+                    cpu.cpuTimer = 2.5 + Math.random(); 
+                }
+            } 
+            else if (cpu.cpuState === 'DEFENDING') {
+                let defensePosition = (cpuDifficulty === 'hard') ? humanPlayer.obj.position.clone() : new THREE.Vector3().lerpVectors(humanPlayer.obj.position, ownHoop.obj.position, 0.3);
+                const directionToDefense = defensePosition.clone().sub(cpu.obj.position).normalize();
+                targetVel.x = directionToDefense.x * PLAYER_SPEED * difficulty.speed;
+                targetVel.z = directionToDefense.z * PLAYER_SPEED * difficulty.speed;
+                
+                const distanceToPlayer = cpu.obj.position.distanceTo(humanPlayer.obj.position);
+                if (distanceToPlayer < 4 && Math.random() < difficulty.stealChance && cpu.onGround && humanPlayer.onGround) {
+                     showMessage("STOLEN!", "#3498db"); resetBall(cpu);
+                }
+                if (distanceToPlayer < 6 && humanPlayer.isShooting && Math.random() < difficulty.blockChance && cpu.onGround) {
+                    cpu.velocity.y = JUMP_FORCE * 0.9; cpu.onGround = false; cpu.isJumping = true;
+                }
+            }
+
+            cpu.velocity.x += (targetVel.x - cpu.velocity.x) * 0.1;
+            cpu.velocity.z += (targetVel.z - cpu.velocity.z) * 0.1;
+            cpu.velocity.y += GRAVITY * delta;
+            cpu.obj.position.add(cpu.velocity.clone().multiplyScalar(delta));
+            if (cpu.obj.position.y < 0) {
+                cpu.obj.position.y = 0; cpu.velocity.y = 0;
+                if(cpu.isJumping) { cpu.isJumping = false; cpu.onGround = true; }
+            }
+        }
+        
+        function shootBall(p) {
+            p.hasBall = false;
+            ball.isGuaranteed = false;
+            ball.reboundableTime = Date.now() + 750;
+
+            const isThree = (p.id === 1 && p.obj.position.x < 0) || (p.id === 2 && p.obj.position.x > 0);
+            ball.shotValue = isThree ? 3 : 2;
+            
+            const targetHoop = p.id === 1 ? hoops[1] : hoops[0];
+            const distance = p.obj.position.distanceTo(targetHoop.scoreZone);
+            const isLayup = distance < 12;
+
+            if (isLayup) { ball.isGuaranteed = Math.random() < 0.9; }
+
+            const accuracy = p.isCPU ? p.shotPower : (1 - Math.abs(p.shotPower - 0.925));
+            const isGreen = !isLayup && accuracy > 0.98;
+
+            if (isGreen) {
+                playAnnouncerVoice("Green light!");
+                showMessage("GREEN LIGHT!", "#2ecc71");
+                shotMeter.classList.add('flash-green');
+                sounds.green.triggerAttackRelease("G5", "8n", Tone.now());
+                createGreenCircleEffect(p.obj.position);
+                setTimeout(() => shotMeter.classList.remove('flash-green'), 500);
+                ball.isGuaranteed = true;
+            }
+            
+            let targetPos = targetHoop.scoreZone.clone();
+            
+            if (!ball.isGuaranteed) {
+                const missFactor = isLayup ? 1.5 : 8;
+                const missAmount = missFactor * (1 - accuracy);
+                targetPos.x += (Math.random() - 0.5) * missAmount;
+                targetPos.y += (Math.random() - 0.5) * missAmount * 0.5;
+                targetPos.z += (Math.random() - 0.5) * missAmount;
+            }
+
+            const startPos = p.obj.position.clone().add(new THREE.Vector3(0, 5, 0));
+            ball.obj.position.copy(startPos);
+            const displacement = targetPos.clone().sub(startPos);
+            
+            let power, angle;
+            if (isLayup) { power = 25; angle = Math.PI / 3; } 
+            else { power = 28 + distance * 0.45; angle = Math.PI / 4 + (distance / court.width) * (Math.PI / 8); }
+            
+            const horizVel = power * Math.cos(angle);
+            const vertVel = power * Math.sin(angle);
+            const horizDir = new THREE.Vector3(displacement.x, 0, displacement.z).normalize();
+            ball.velocity.set(horizDir.x * horizVel, vertVel, horizDir.z * horizVel);
+
+            p.shotPower = 0; p.shotPowerIncreasing = true;
+        }
+        
+        function createGreenCircleEffect(position) {
+            const ringGeo = new THREE.RingGeometry(0.1, 4, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00FF00, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.copy(position);
+            ring.position.y = 0.1;
+            ring.rotation.x = -Math.PI / 2;
+            scene.add(ring);
+            
+            let startTime = Date.now();
+            const duration = 500;
+            
+            function animateRing() {
+                const elapsed = Date.now() - startTime;
+                if (elapsed < duration) {
+                    const progress = elapsed / duration;
+                    const easeOut = 1 - Math.pow(1 - progress, 3);
+                    ring.scale.set(easeOut, easeOut, easeOut);
+                    ring.material.opacity = 1 - easeOut;
+                    requestAnimationFrame(animateRing);
+                } else { scene.remove(ring); }
+            }
+            animateRing();
+        }
+
+        function updateBall(delta) {
+            const targetHoop = ball.velocity.x > 0 ? hoops[1] : hoops[0];
+            
+            if (ball.isGuaranteed) {
+                if (ball.obj.position.distanceTo(targetHoop.scoreZone) < 50 && ball.velocity.y < 10) {
+                    const directionToHoop = targetHoop.scoreZone.clone().sub(ball.obj.position).normalize();
+                    ball.velocity.add(directionToHoop.multiplyScalar(8.0));
+                }
+                if (ball.obj.position.distanceTo(targetHoop.scoreZone) < 10) {
+                    ball.obj.position.lerp(targetHoop.scoreZone, 0.3);
+                }
+                if (!ball.scored && ball.obj.position.distanceTo(targetHoop.scoreZone) < 2.5) {
+                    handleScore(targetHoop === hoops[0] ? 2 : 1);
+                }
+            }
+
+            ball.velocity.y += GRAVITY * delta;
+            ball.obj.position.add(ball.velocity.clone().multiplyScalar(delta));
+
+            players.forEach(p => {
+                if(!p.onGround && ball.velocity.y > 0 && p.obj.position.distanceTo(ball.obj.position) < 4) {
+                    if (p.isCPU && cpuDifficulty === 'hard' && Math.random() < 0.3) return; 
+                    showMessage("BLOCKED!", "#e74c3c");
+                    ball.velocity.multiplyScalar(-0.5); ball.velocity.y *= 0.5; ball.isGuaranteed = false;
+                }
+            });
+
+            if (ball.obj.position.y < 1.1 && Math.abs(ball.velocity.y) > 2) {
+                const now = Tone.now(); if (now - ball.lastBounceTime > 0.1) { sounds.bounce.triggerAttackRelease("C2", "8n", now, Math.min(Math.abs(ball.velocity.y) / 20, 1)); ball.lastBounceTime = now; }
+                ball.obj.position.y = 1; ball.velocity.y *= -0.7; ball.passedThroughRim = null;
+            }
+            if (Math.abs(ball.obj.position.x) > court.width / 2) { ball.velocity.x *= -0.8; }
+            if (Math.abs(ball.obj.position.z) > court.depth / 2) { ball.velocity.z *= -0.8; }
+            
+            if (ball.obj.position.y < 5 && !ball.scored && !players.some(p => p.hasBall) && Date.now() > ball.reboundableTime) {
+                let closestPlayer = null, minDist = 4;
+                players.forEach(p => {
+                    const dist = p.obj.position.distanceTo(ball.obj.position);
+                    if (dist < minDist) { minDist = dist; closestPlayer = p; }
+                });
+                if (closestPlayer) resetBall(closestPlayer);
+            }
+
+            hoops.forEach((hoop, index) => {
+                if (ball.obj.userData.bbox.intersectsBox(hoop.backboardBox)) {
+                    const now = Tone.now(); if (now - ball.lastBounceTime > 0.1) { sounds.backboard.triggerAttackRelease("C3", "8n", now); ball.lastBounceTime = now; }
+                    const normal = new THREE.Vector3(hoop.obj.rotation.y !== 0 ? 1 : -1, 0, 0); 
+                    ball.velocity.reflect(normal).multiplyScalar(0.9);
+                    ball.obj.position.add(normal.multiplyScalar(0.2));
+                    ball.velocity.y += (Math.random() - 0.2) * 2; ball.isGuaranteed = false;
+                }
+                if (!ball.scored && !ball.passedThroughRim && ball.velocity.y < 0 && Math.abs(ball.obj.position.y - hoop.scoreZone.y) < 0.5) {
+                    if (ball.obj.position.distanceTo(hoop.scoreZone) < 2.5) { ball.passedThroughRim = hoop; }
+                }
+                if (ball.passedThroughRim === hoop && ball.obj.position.y < hoop.scoreZone.y - 2) {
+                    handleScore(index === 0 ? 2 : 1);
+                    ball.passedThroughRim = null;
+                }
+            });
+        }
+        
+        function handleScore(scoringPlayerId) {
+            if (ball.scored) return;
+            ball.scored = true;
+            ball.isGuaranteed = false; 
+            ball.obj.position.y = hoops[0].scoreZone.y - 1; 
+            ball.velocity.set(0, -20, 0); 
+            
+            sounds.swoosh.triggerAttackRelease("8n", Tone.now());
+            triggerCrowdCheer(); 
+
+            let otherPlayer;
+            const points = ball.shotValue || 2;
+            
+            if (scoringPlayerId === 1) {
+                p1Score += points; otherPlayer = players.find(p => p.id === 2);
+            } else {
+                p2Score += points; otherPlayer = players.find(p => p.id === 1);
+            }
+
+            if (points === 3) {
+                playAnnouncerVoice("Gimme three!");
+                showMessage("THREE POINTER!", "#f1c40f");
+            }
+
+            updateScoreboard();
+
+            if (gameMode === 'score' && (p1Score >= 21 || p2Score >= 21)) {
+                let winner = p1Score >= 21 ? "Player 1" : (numPlayers === 1 ? "CPU" : "Player 2");
+                endGame(`${winner} Wins!`);
+            } else {
+                 setTimeout(() => resetPositionsAfterScore(otherPlayer), 2000);
+            }
+        }
+        
+        function resetBall(playerWithBall) {
+            playerWithBall.hasBall = true;
+            ball.scored = false;
+            players.forEach(p => { if(p !== playerWithBall) p.hasBall = false; });
+        }
+        
+        function resetPositionsAfterScore(playerToReceiveBall) {
+            ball.velocity.set(0, 0, 0);
+            
+            const inboundX = playerToReceiveBall.id === 1 ? -court.width / 4 : court.width / 4;
+            playerToReceiveBall.obj.position.set(inboundX, 0, 0);
+            playerToReceiveBall.velocity.set(0,0,0);
+            
+            const defender = players.find(p => p !== playerToReceiveBall);
+            defender.obj.position.set(-inboundX, 0, 0);
+            defender.velocity.set(0,0,0);
+
+            setTimeout(() => resetBall(playerToReceiveBall), 100);
+        }
+        
+        function endGame(winnerText) {
+            gameState = 'gameOver';
+            if (timerInterval) clearInterval(timerInterval);
+
+            if ((gameMode === 'time' || overtimeLevel > 0) && p1Score === p2Score) {
+                document.getElementById('winner-text').textContent = "OVERTIME!";
+                document.getElementById('final-score-text').textContent = `Tied ${p1Score} - ${p2Score}`;
+                startOtBtn.textContent = `Start OT`;
+                startOtBtn.classList.remove('hidden');
+                document.getElementById('main-menu-btn').classList.add('hidden');
+                document.getElementById('play-again-same-settings-btn').classList.add('hidden');
+                playAnnouncerVoice("Overtime!");
+            } else {
+                document.getElementById('winner-text').textContent = winnerText;
+                document.getElementById('final-score-text').textContent = `${p1Score} - ${p2Score}`;
+                startOtBtn.classList.add('hidden');
+                document.getElementById('main-menu-btn').classList.remove('hidden');
+                document.getElementById('play-again-same-settings-btn').classList.remove('hidden');
+            }
+            switchMenu(gameOverMenu);
+            updateButtonVisibility();
+        }
+
+        function startOvertime() {
+            overtimeLevel++;
+            gameState = 'playing';
+            switchMenu(null);
+            initGame(true); // Pass true to indicate this is OT and scores should not reset
+        }
+
+        function playAnnouncerVoice(text) {
+            if ('speechSynthesis' in window && announcerVoice) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.voice = announcerVoice;
+                utterance.lang = 'en-US';
+                utterance.rate = 1.1;
+                utterance.pitch = 0.6;
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        function animateCrowd(time) {
+            const timeInSeconds = time * 0.001;
+            if (waveState.active) {
+                const waveProgress = (time - waveState.startTime) / waveState.duration;
+                if (waveProgress > 1.2) { waveState.active = false; }
+                crowdMeshes.forEach(spectator => {
+                    const worldPos = new THREE.Vector3();
+                    spectator.getWorldPosition(worldPos);
+                    const wavePos = (worldPos.x / court.width) * 4; 
+                    const waveOffset = Math.sin((wavePos - waveProgress * 8) * Math.PI) * 3;
+                    spectator.position.y = spectator.userData.baseY + (waveOffset > 0 ? waveOffset : 0);
+                });
+            } else {
+                 crowdMeshes.forEach((spectator, index) => {
+                    if (spectator.userData.cheerUntil > time) {
+                        const cheerDuration = 1000;
+                        const timeSinceCheerStart = spectator.userData.cheerUntil - time;
+                        const progress = 1 - (timeSinceCheerStart / cheerDuration);
+                        spectator.position.y = spectator.userData.baseY + Math.sin(progress * Math.PI) * 3;
+                    } else {
+                        spectator.position.y = spectator.userData.baseY + Math.sin(timeInSeconds * 2 + index * 0.5) * 0.2;
+                    }
+                });
+            }
+        }
+        
+        function triggerCrowdCheer() {
+            if (!isMuted) sounds.cheer.triggerAttackRelease("1.5s", Tone.now());
+            const cheerDuration = 1000;
+            const now = Date.now();
+            crowdMeshes.forEach(spectator => { spectator.userData.cheerUntil = now + cheerDuration; });
+            waveState.active = true;
+            waveState.startTime = lastTime;
+        }
+
+        function updateShotMeter(p) {
+            const screenPos = toScreenPosition(p.obj, camera);
+            shotMeter.style.display = 'flex';
+            shotMeter.style.left = `${screenPos.x - 40}px`;
+            shotMeter.style.top = `${screenPos.y - 120}px`;
+            shotMeterBar.style.height = `${p.shotPower * 100}%`;
+            if (p.shotPower > 0.85 && p.shotPower < 1.0) {
+                 shotMeterBar.style.backgroundColor = '#00FF00';
+            } else {
+                 shotMeterBar.style.backgroundColor = '#fff';
+            }
+        }
+        
+        function toScreenPosition(obj, camera) {
+            const vector = new THREE.Vector3();
+            obj.getWorldPosition(vector); 
+            vector.project(camera);
+            return {
+                x: (vector.x * 0.5 + 0.5) * renderer.domElement.clientWidth,
+                y: (vector.y * -0.5 + 0.5) * renderer.domElement.clientHeight
+            };
+        }
+        
+        function updateScoreboard() {
+            document.getElementById('p1Score').textContent = p1Score;
+            document.getElementById('p2Score').textContent = p2Score;
+            if(gameMode === 'time' || overtimeLevel > 0) {
+                document.getElementById('timer').textContent = timer.toString().padStart(2, '0');
+            }
+        }
+        
+        function showMessage(msg, color) {
+            gameMessage.textContent = msg; gameMessage.style.color = color;
+            gameMessage.classList.add('show-message');
+            setTimeout(() => gameMessage.classList.remove('show-message'), 1500);
+        }
+        
+        function switchMenu(targetMenu) {
+            allMenus.forEach(menu => menu.classList.add('hidden'));
+            if(targetMenu) targetMenu.classList.remove('hidden');
+        }
+
+        function updateButtonVisibility() {
+            const isPlaying = gameState === 'playing';
+            const isPaused = gameState === 'paused';
+            const isMenu = gameState === 'menu' || gameState === 'gameOver';
+            pauseBtn.classList.toggle('hidden', !isPlaying && !isPaused);
+            homeBtn.classList.toggle('hidden', isPlaying);
+            helpBtn.classList.toggle('hidden', !(isMenu || isPaused));
+            scoreboard.classList.toggle('hidden', isMenu);
+            if (tipOffStarted) {
+                startGameBtn.classList.add('hidden');
+            }
+        }
+
+        function setupUIListeners() {
+            document.getElementById('play-btn').addEventListener('click', () => { 
+                if (Tone.context.state !== 'running') {
+                    Tone.start().then(() => {
+                        console.log("Audio Context is running");
+                        initAllMusic();
+                        switchMusic(0);
+                    });
+                }
+                switchMenu(gameSetupMenu); 
+            });
+
+            document.querySelectorAll('.back-btn').forEach(btn => btn.addEventListener('click', e => switchMenu(document.getElementById(e.target.dataset.target))));
+            
+            document.querySelectorAll('.setup-btn').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    const target = e.currentTarget;
+                    const setupType = target.dataset.setup;
+                    document.querySelectorAll(`.setup-btn[data-setup="${setupType}"]`).forEach(b => b.classList.remove('active'));
+                    target.classList.add('active');
+                    if (setupType === 'players') {
+                        const is1P = target.dataset.value === '1';
+                        document.getElementById('difficulty-row').style.display = is1P ? 'flex' : 'none';
+                    }
+                });
+            });
+
+            document.getElementById('start-setup-btn').addEventListener('click', () => {
+                numPlayers = parseInt(document.querySelector('.setup-btn[data-setup="players"].active').dataset.value, 10);
+                if (numPlayers === 1) {
+                    cpuDifficulty = document.querySelector('.setup-btn[data-setup="difficulty"].active').dataset.value;
+                }
+                gameMode = document.querySelector('.setup-btn[data-setup="mode"].active').dataset.value;
+                overtimeLevel = 0;
+                switchMenu(null);
+                initGame();
+            });
+
+            startGameBtn.addEventListener('click', () => {
+                startTimer();
+                startGameBtn.classList.add('hidden');
+            });
+
+            startOtBtn.addEventListener('click', () => { startOvertime(); });
+            
+            document.getElementById('play-again-same-settings-btn').addEventListener('click', () => {
+                overtimeLevel = 0;
+                switchMenu(null);
+                initGame();
+            });
+
+            document.getElementById('main-menu-btn').addEventListener('click', () => { 
+                gameState = 'menu';
+                overtimeLevel = 0;
+                startOtBtn.classList.add('hidden');
+                switchMenu(mainMenu); 
+                updateButtonVisibility(); 
+            });
+            helpBtn.addEventListener('click', () => { if (gameState === 'menu' || gameState === 'gameOver' || gameState === 'paused') switchMenu(helpMenu); });
+            document.getElementById('close-help-btn').addEventListener('click', () => {
+                 if (gameState === 'paused') switchMenu(pauseMenu);
+                 else switchMenu(gameState === 'gameOver' ? gameOverMenu : mainMenu);
+            });
+            
+            document.querySelectorAll('.music-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const musicId = parseInt(e.target.dataset.music, 10);
+                    switchMusic(musicId);
+                });
+            });
+
+            document.getElementById('mute-btn').addEventListener('click', () => {
+                isMuted = !isMuted;
+                Tone.Master.mute = isMuted;
+                document.getElementById('slash-path').style.display = isMuted ? 'block' : 'none';
+            });
+            
+            homeBtn.addEventListener('click', () => {
+                clearInterval(timerInterval);
+                gameState = 'menu';
+                overtimeLevel = 0;
+                startOtBtn.classList.add('hidden');
+                switchMenu(mainMenu);
+                updateButtonVisibility();
+                shotMeter.style.display = 'none';
+            });
+
+            const togglePause = () => {
+                if (gameState === 'playing' || gameState === 'paused') {
+                    gameState = gameState === 'playing' ? 'paused' : 'playing';
+                    pauseBtn.textContent = gameState === 'paused' ? '▶' : '❚❚';
+                    if (gameState === 'paused') { if (currentMusicIndex !== -1) Tone.Transport.pause(); } 
+                    else { if (currentMusicIndex !== -1) Tone.Transport.start(); }
+                    switchMenu(gameState === 'paused' ? pauseMenu : null);
+                    updateButtonVisibility();
+                }
+            };
+            pauseBtn.addEventListener('click', togglePause);
+            document.getElementById('resume-btn').addEventListener('click', togglePause);
+        }
+        
+        function setupKeyListeners() {
+            const crossoverThreshold = 250;
+            window.addEventListener('keydown', (e) => {
+                 if(!keys[e.code]) {
+                    const now = Date.now();
+                    const p1StealKey = 'KeyG', p2StealKey = 'KeyL';
+                    let player = null;
+                    if(e.code === p1StealKey) player = players[0];
+                    if(e.code === p2StealKey) player = players[1];
+                    if (player && player.hasBall && now - (keyPressHistory[e.code] || 0) < crossoverThreshold) {
+                        if (!ball.crossoverTween) { ball.crossoverTween = { startTime: now, duration: 200, strength: 2 }; }
+                    }
+                    keyPressHistory[e.code] = now;
+                 }
+                 keys[e.code] = true;
+                 if (e.code === 'KeyP') { document.getElementById('pause-btn').click(); }
+            });
+            window.addEventListener('keyup', (e) => {
+                keys[e.code] = false;
+                const p1Action = 'KeyF', p2Action = 'KeyK';
+                if(e.code === p1Action) jumpAndShoot(players[0]);
+                if(e.code === p2Action) jumpAndShoot(players[1]);
+            });
+        }
+
+        // --- Initial Setup ---
+        initThree();
+        createCourt();
+        createAllCrowds();
+        createHoop(-court.width / 2 + 5.25, 0, 0);
+        createHoop(court.width / 2 - 5.25, 0, Math.PI);
+        setupUIListeners();
+        setupKeyListeners();
+        updateButtonVisibility();
+        
+        let lastTime = 0;
+        function animate(time) {
+            time = time || 0;
+            const delta = Math.min((time - lastTime) * 0.001, 0.05);
+            lastTime = time;
+            requestAnimationFrame(animate);
+            if (gameState === 'playing' || gameState === 'paused') {
+                 if (gameState === 'playing') { update(delta, time); }
+            } else {
+                animateCrowd(time);
+                renderer.render(scene, camera);
+            }
+        }
+        
+        function setupAnnouncer() {
+             if ('speechSynthesis' in window) {
+                const setVoice = () => {
+                    const voices = speechSynthesis.getVoices();
+                    announcerVoice = voices.find(v => v.name.includes('Google US English') && v.gender === 'male') 
+                                || voices.find(v => v.lang === 'en-US' && v.name.toLowerCase().includes('male'))
+                                || voices.find(v => v.lang === 'en-US');
+                };
+                setVoice();
+                if (speechSynthesis.onvoiceschanged !== undefined) {
+                    speechSynthesis.onvoiceschanged = setVoice;
+                }
+            }
+        }
+        setupAnnouncer();
+        animate();
+        
+    });
+    </script>
 </body>
 </html>
+
